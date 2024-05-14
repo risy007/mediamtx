@@ -23,9 +23,10 @@ import (
 
 // Source is a RTMP static source.
 type Source struct {
-	ReadTimeout  conf.StringDuration
-	WriteTimeout conf.StringDuration
-	Parent       defs.StaticSourceParent
+	ResolvedSource string
+	ReadTimeout    conf.StringDuration
+	WriteTimeout   conf.StringDuration
+	Parent         defs.StaticSourceParent
 }
 
 // Log implements logger.Writer.
@@ -37,7 +38,7 @@ func (s *Source) Log(level logger.Level, format string, args ...interface{}) {
 func (s *Source) Run(params defs.StaticSourceRunParams) error {
 	s.Log(logger.Debug, "connecting")
 
-	u, err := url.Parse(params.Conf.Source)
+	u, err := url.Parse(s.ResolvedSource)
 	if err != nil {
 		return err
 	}
@@ -45,7 +46,11 @@ func (s *Source) Run(params defs.StaticSourceRunParams) error {
 	// add default port
 	_, _, err = net.SplitHostPort(u.Host)
 	if err != nil {
-		u.Host = net.JoinHostPort(u.Host, "1935")
+		if u.Scheme == "rtmp" {
+			u.Host = net.JoinHostPort(u.Host, "1935")
+		} else {
+			u.Host = net.JoinHostPort(u.Host, "1936")
+		}
 	}
 
 	nconn, err := func() (net.Conn, error) {

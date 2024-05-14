@@ -11,32 +11,27 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
 	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
-	"github.com/bluenviron/mediamtx/internal/logger"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/stream"
+	"github.com/bluenviron/mediamtx/internal/test"
 	"github.com/bluenviron/mediamtx/internal/unit"
 )
-
-type nilLogger struct{}
-
-func (nilLogger) Log(_ logger.Level, _ string, _ ...interface{}) {
-}
 
 func TestAgent(t *testing.T) {
 	desc := &description.Session{Medias: []*description.Media{
 		{
 			Type: description.MediaTypeVideo,
-			Formats: []rtspformat.Format{&rtspformat.H265{
-				PayloadTyp: 96,
+			Formats: []rtspformat.Format{&rtspformat.H264{
+				PayloadTyp:        96,
+				PacketizationMode: 1,
 			}},
 		},
 		{
 			Type: description.MediaTypeVideo,
-			Formats: []rtspformat.Format{&rtspformat.H264{
-				PayloadTyp:        96,
-				PacketizationMode: 1,
+			Formats: []rtspformat.Format{&rtspformat.H265{
+				PayloadTyp: 96,
 			}},
 		},
 		{
@@ -53,51 +48,49 @@ func TestAgent(t *testing.T) {
 				IndexDeltaLength: 3,
 			}},
 		},
+		{
+			Type: description.MediaTypeAudio,
+			Formats: []rtspformat.Format{&rtspformat.G711{
+				PayloadTyp:   8,
+				MULaw:        false,
+				SampleRate:   8000,
+				ChannelCount: 1,
+			}},
+		},
+		{
+			Type: description.MediaTypeAudio,
+			Formats: []rtspformat.Format{&rtspformat.LPCM{
+				PayloadTyp:   96,
+				BitDepth:     16,
+				SampleRate:   44100,
+				ChannelCount: 2,
+			}},
+		},
 	}}
 
-	writeToStream := func(stream *stream.Stream) {
+	writeToStream := func(stream *stream.Stream, ntp time.Time) {
 		for i := 0; i < 3; i++ {
-			stream.WriteUnit(desc.Medias[0], desc.Medias[0].Formats[0], &unit.H265{
+			stream.WriteUnit(desc.Medias[0], desc.Medias[0].Formats[0], &unit.H264{
 				Base: unit.Base{
 					PTS: (50 + time.Duration(i)) * time.Second,
+					NTP: ntp.Add(time.Duration(i) * 60 * time.Second),
 				},
 				AU: [][]byte{
-					{ // VPS
-						0x40, 0x01, 0x0c, 0x01, 0xff, 0xff, 0x02, 0x20,
-						0x00, 0x00, 0x03, 0x00, 0xb0, 0x00, 0x00, 0x03,
-						0x00, 0x00, 0x03, 0x00, 0x7b, 0x18, 0xb0, 0x24,
-					},
-					{ // SPS
-						0x42, 0x01, 0x01, 0x02, 0x20, 0x00, 0x00, 0x03,
-						0x00, 0xb0, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03,
-						0x00, 0x7b, 0xa0, 0x07, 0x82, 0x00, 0x88, 0x7d,
-						0xb6, 0x71, 0x8b, 0x92, 0x44, 0x80, 0x53, 0x88,
-						0x88, 0x92, 0xcf, 0x24, 0xa6, 0x92, 0x72, 0xc9,
-						0x12, 0x49, 0x22, 0xdc, 0x91, 0xaa, 0x48, 0xfc,
-						0xa2, 0x23, 0xff, 0x00, 0x01, 0x00, 0x01, 0x6a,
-						0x02, 0x02, 0x02, 0x01,
-					},
-					{ // PPS
-						0x44, 0x01, 0xc0, 0x25, 0x2f, 0x05, 0x32, 0x40,
-					},
-					{byte(h265.NALUType_CRA_NUT) << 1, 0}, // IDR
+					test.FormatH264.SPS,
+					test.FormatH264.PPS,
+					{5}, // IDR
 				},
 			})
 
-			stream.WriteUnit(desc.Medias[1], desc.Medias[1].Formats[0], &unit.H264{
+			stream.WriteUnit(desc.Medias[1], desc.Medias[1].Formats[0], &unit.H265{
 				Base: unit.Base{
 					PTS: (50 + time.Duration(i)) * time.Second,
 				},
 				AU: [][]byte{
-					{ // SPS
-						0x67, 0x42, 0xc0, 0x28, 0xd9, 0x00, 0x78, 0x02,
-						0x27, 0xe5, 0x84, 0x00, 0x00, 0x03, 0x00, 0x04,
-						0x00, 0x00, 0x03, 0x00, 0xf0, 0x3c, 0x60, 0xc9, 0x20,
-					},
-					{ // PPS
-						0x08, 0x06, 0x07, 0x08,
-					},
-					{5}, // IDR
+					test.FormatH265.VPS,
+					test.FormatH265.SPS,
+					test.FormatH265.PPS,
+					{byte(h265.NALUType_CRA_NUT) << 1, 0}, // IDR
 				},
 			})
 
@@ -107,34 +100,30 @@ func TestAgent(t *testing.T) {
 				},
 				AUs: [][]byte{{1, 2, 3, 4}},
 			})
+
+			stream.WriteUnit(desc.Medias[3], desc.Medias[3].Formats[0], &unit.G711{
+				Base: unit.Base{
+					PTS: (50 + time.Duration(i)) * time.Second,
+				},
+				Samples: []byte{1, 2, 3, 4},
+			})
+
+			stream.WriteUnit(desc.Medias[4], desc.Medias[4].Formats[0], &unit.LPCM{
+				Base: unit.Base{
+					PTS: (50 + time.Duration(i)) * time.Second,
+				},
+				Samples: []byte{1, 2, 3, 4},
+			})
 		}
 	}
 
 	for _, ca := range []string{"fmp4", "mpegts"} {
 		t.Run(ca, func(t *testing.T) {
-			n := 0
-			timeNow = func() time.Time {
-				n++
-				switch n {
-				case 1:
-					return time.Date(2008, 0o5, 20, 22, 15, 25, 0, time.UTC)
-
-				case 2:
-					return time.Date(2009, 0o5, 20, 22, 15, 25, 0, time.UTC)
-
-				case 3:
-					return time.Date(2010, 0o5, 20, 22, 15, 25, 0, time.UTC)
-
-				default:
-					return time.Date(2011, 0o5, 20, 22, 15, 25, 0, time.UTC)
-				}
-			}
-
 			stream, err := stream.New(
 				1460,
 				desc,
 				true,
-				&nilLogger{},
+				test.NilLogger,
 			)
 			require.NoError(t, err)
 			defer stream.Close()
@@ -163,21 +152,21 @@ func TestAgent(t *testing.T) {
 				SegmentDuration: 1 * time.Second,
 				PathName:        "mypath",
 				Stream:          stream,
-				OnSegmentCreate: func(fpath string) {
+				OnSegmentCreate: func(_ string) {
 					segCreated <- struct{}{}
 				},
-				OnSegmentComplete: func(fpath string) {
+				OnSegmentComplete: func(_ string) {
 					segDone <- struct{}{}
 				},
-				Parent:       &nilLogger{},
+				Parent:       test.NilLogger,
 				restartPause: 1 * time.Millisecond,
 			}
 			w.Initialize()
 
-			writeToStream(stream)
+			writeToStream(stream, time.Date(2008, 0o5, 20, 22, 15, 25, 0, time.UTC))
 
 			// simulate a write error
-			stream.WriteUnit(desc.Medias[1], desc.Medias[1].Formats[0], &unit.H264{
+			stream.WriteUnit(desc.Medias[0], desc.Medias[0].Formats[0], &unit.H264{
 				Base: unit.Base{
 					PTS: 0,
 				},
@@ -198,15 +187,81 @@ func TestAgent(t *testing.T) {
 				ext = "ts"
 			}
 
-			_, err = os.Stat(filepath.Join(dir, "mypath", "2008-05-20_22-15-25-000000."+ext))
-			require.NoError(t, err)
+			if ca == "fmp4" {
+				func() {
+					f, err2 := os.Open(filepath.Join(dir, "mypath", "2008-05-20_22-15-25-000000."+ext))
+					require.NoError(t, err2)
+					defer f.Close()
 
-			_, err = os.Stat(filepath.Join(dir, "mypath", "2009-05-20_22-15-25-000000."+ext))
-			require.NoError(t, err)
+					var init fmp4.Init
+					err2 = init.Unmarshal(f)
+					require.NoError(t, err2)
+
+					require.Equal(t, fmp4.Init{
+						Tracks: []*fmp4.InitTrack{
+							{
+								ID:        1,
+								TimeScale: 90000,
+								Codec: &fmp4.CodecH264{
+									SPS: test.FormatH264.SPS,
+									PPS: test.FormatH264.PPS,
+								},
+							},
+							{
+								ID:        2,
+								TimeScale: 90000,
+								Codec: &fmp4.CodecH265{
+									VPS: test.FormatH265.VPS,
+									SPS: test.FormatH265.SPS,
+									PPS: test.FormatH265.PPS,
+								},
+							},
+							{
+								ID:        3,
+								TimeScale: 44100,
+								Codec: &fmp4.CodecMPEG4Audio{
+									Config: mpeg4audio.Config{
+										Type:         2,
+										SampleRate:   44100,
+										ChannelCount: 2,
+									},
+								},
+							},
+							{
+								ID:        4,
+								TimeScale: 8000,
+								Codec: &fmp4.CodecLPCM{
+									BitDepth:     16,
+									SampleRate:   8000,
+									ChannelCount: 1,
+								},
+							},
+							{
+								ID:        5,
+								TimeScale: 44100,
+								Codec: &fmp4.CodecLPCM{
+									BitDepth:     16,
+									SampleRate:   44100,
+									ChannelCount: 2,
+								},
+							},
+						},
+					}, init)
+				}()
+
+				_, err = os.Stat(filepath.Join(dir, "mypath", "2008-05-20_22-16-25-000000."+ext))
+				require.NoError(t, err)
+			} else {
+				_, err = os.Stat(filepath.Join(dir, "mypath", "2008-05-20_22-15-25-000000."+ext))
+				require.NoError(t, err)
+
+				_, err = os.Stat(filepath.Join(dir, "mypath", "2008-05-20_22-16-25-000000."+ext))
+				require.NoError(t, err)
+			}
 
 			time.Sleep(50 * time.Millisecond)
 
-			writeToStream(stream)
+			writeToStream(stream, time.Date(2010, 0o5, 20, 22, 15, 25, 0, time.UTC))
 
 			time.Sleep(50 * time.Millisecond)
 
@@ -215,7 +270,7 @@ func TestAgent(t *testing.T) {
 			_, err = os.Stat(filepath.Join(dir, "mypath", "2010-05-20_22-15-25-000000."+ext))
 			require.NoError(t, err)
 
-			_, err = os.Stat(filepath.Join(dir, "mypath", "2011-05-20_22-15-25-000000."+ext))
+			_, err = os.Stat(filepath.Join(dir, "mypath", "2010-05-20_22-16-25-000000."+ext))
 			require.NoError(t, err)
 		})
 	}
@@ -246,15 +301,11 @@ func TestAgentFMP4NegativeDTS(t *testing.T) {
 		},
 	}}
 
-	timeNow = func() time.Time {
-		return time.Date(2008, 0o5, 20, 22, 15, 25, 0, time.UTC)
-	}
-
 	stream, err := stream.New(
 		1460,
 		desc,
 		true,
-		&nilLogger{},
+		test.NilLogger,
 	)
 	require.NoError(t, err)
 	defer stream.Close()
@@ -273,7 +324,7 @@ func TestAgentFMP4NegativeDTS(t *testing.T) {
 		SegmentDuration: 1 * time.Second,
 		PathName:        "mypath",
 		Stream:          stream,
-		Parent:          &nilLogger{},
+		Parent:          test.NilLogger,
 	}
 	w.Initialize()
 
@@ -281,16 +332,11 @@ func TestAgentFMP4NegativeDTS(t *testing.T) {
 		stream.WriteUnit(desc.Medias[0], desc.Medias[0].Formats[0], &unit.H264{
 			Base: unit.Base{
 				PTS: -50*time.Millisecond + (time.Duration(i) * 200 * time.Millisecond),
+				NTP: time.Date(2008, 0o5, 20, 22, 15, 25, 0, time.UTC),
 			},
 			AU: [][]byte{
-				{ // SPS
-					0x67, 0x42, 0xc0, 0x28, 0xd9, 0x00, 0x78, 0x02,
-					0x27, 0xe5, 0x84, 0x00, 0x00, 0x03, 0x00, 0x04,
-					0x00, 0x00, 0x03, 0x00, 0xf0, 0x3c, 0x60, 0xc9, 0x20,
-				},
-				{ // PPS
-					0x08, 0x06, 0x07, 0x08,
-				},
+				test.FormatH264.SPS,
+				test.FormatH264.PPS,
 				{5}, // IDR
 			},
 		})

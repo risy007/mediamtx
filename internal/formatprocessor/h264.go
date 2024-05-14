@@ -2,10 +2,12 @@ package formatprocessor
 
 import (
 	"bytes"
+	"errors"
 	"time"
 
 	"github.com/bluenviron/gortsplib/v4/pkg/format"
 	"github.com/bluenviron/gortsplib/v4/pkg/format/rtph264"
+	"github.com/bluenviron/gortsplib/v4/pkg/rtptime"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/pion/rtp"
 
@@ -28,7 +30,7 @@ func rtpH264ExtractParams(payload []byte) ([]byte, []byte) {
 		return nil, payload
 
 	case h264.NALUTypeSTAPA:
-		payload := payload[1:]
+		payload = payload[1:]
 		var sps []byte
 		var pps []byte
 
@@ -72,9 +74,9 @@ func rtpH264ExtractParams(payload []byte) ([]byte, []byte) {
 type formatProcessorH264 struct {
 	udpMaxPayloadSize int
 	format            *format.H264
-
-	encoder *rtph264.Encoder
-	decoder *rtph264.Decoder
+	timeEncoder       *rtptime.Encoder
+	encoder           *rtph264.Encoder
+	decoder           *rtph264.Decoder
 }
 
 func newH264(
@@ -89,6 +91,14 @@ func newH264(
 
 	if generateRTPPackets {
 		err := t.createEncoder(nil, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		t.timeEncoder = &rtptime.Encoder{
+			ClockRate: forma.ClockRate(),
+		}
+		err = t.timeEncoder.Initialize()
 		if err != nil {
 			return nil, err
 		}
@@ -223,13 +233,12 @@ func (t *formatProcessorH264) ProcessUnit(uu unit.Unit) error {
 		if err != nil {
 			return err
 		}
+		u.RTPPackets = pkts
 
-		ts := uint32(multiplyAndDivide(u.PTS, time.Duration(t.format.ClockRate()), time.Second))
-		for _, pkt := range pkts {
+		ts := t.timeEncoder.Encode(u.PTS)
+		for _, pkt := range u.RTPPackets {
 			pkt.Timestamp += ts
 		}
-
-		u.RTPPackets = pkts
 	}
 
 	return nil
@@ -284,7 +293,8 @@ func (t *formatProcessorH264) ProcessRTPPacket( //nolint:dupl
 		}
 
 		if err != nil {
-			if err == rtph264.ErrNonStartingPacketAndNoPrevious || err == rtph264.ErrMorePacketsNeeded {
+			if errors.Is(err, rtph264.ErrNonStartingPacketAndNoPrevious) ||
+				errors.Is(err, rtph264.ErrMorePacketsNeeded) {
 				return u, nil
 			}
 			return nil, err
@@ -304,12 +314,11 @@ func (t *formatProcessorH264) ProcessRTPPacket( //nolint:dupl
 		if err != nil {
 			return nil, err
 		}
+		u.RTPPackets = pkts
 
-		for _, newPKT := range pkts {
+		for _, newPKT := range u.RTPPackets {
 			newPKT.Timestamp = pkt.Timestamp
 		}
-
-		u.RTPPackets = pkts
 	}
 
 	return u, nil

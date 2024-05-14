@@ -4,6 +4,7 @@ package rtmp
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"sort"
@@ -16,7 +17,11 @@ import (
 	"github.com/bluenviron/mediamtx/internal/externalcmd"
 	"github.com/bluenviron/mediamtx/internal/logger"
 	"github.com/bluenviron/mediamtx/internal/restrictnetwork"
+	"github.com/bluenviron/mediamtx/internal/stream"
 )
+
+// ErrConnNotFound is returned when a connection is not found.
+var ErrConnNotFound = errors.New("connection not found")
 
 type serverAPIConnsListRes struct {
 	data *defs.APIRTMPConnList
@@ -46,6 +51,11 @@ type serverAPIConnsKickReq struct {
 	res  chan serverAPIConnsKickRes
 }
 
+type serverPathManager interface {
+	AddPublisher(req defs.PathAddPublisherReq) (defs.Path, error)
+	AddReader(req defs.PathAddReaderReq) (defs.Path, *stream.Stream, error)
+}
+
 type serverParent interface {
 	logger.Writer
 }
@@ -64,7 +74,7 @@ type Server struct {
 	RunOnConnectRestart bool
 	RunOnDisconnect     string
 	ExternalCmdPool     *externalcmd.Pool
-	PathManager         defs.PathManager
+	PathManager         serverPathManager
 	Parent              serverParent
 
 	ctx       context.Context
@@ -196,7 +206,7 @@ outer:
 		case req := <-s.chAPIConnsGet:
 			c := s.findConnByUUID(req.uuid)
 			if c == nil {
-				req.res <- serverAPIConnsGetRes{err: fmt.Errorf("connection not found")}
+				req.res <- serverAPIConnsGetRes{err: ErrConnNotFound}
 				continue
 			}
 
@@ -205,7 +215,7 @@ outer:
 		case req := <-s.chAPIConnsKick:
 			c := s.findConnByUUID(req.uuid)
 			if c == nil {
-				req.res <- serverAPIConnsKickRes{err: fmt.Errorf("connection not found")}
+				req.res <- serverAPIConnsKickRes{err: ErrConnNotFound}
 				continue
 			}
 

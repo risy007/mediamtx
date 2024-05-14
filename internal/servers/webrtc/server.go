@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -25,13 +26,16 @@ import (
 	"github.com/bluenviron/mediamtx/internal/logger"
 	"github.com/bluenviron/mediamtx/internal/protocols/webrtc"
 	"github.com/bluenviron/mediamtx/internal/restrictnetwork"
+	"github.com/bluenviron/mediamtx/internal/stream"
 )
 
 const (
-	webrtcPauseAfterAuthError  = 2 * time.Second
 	webrtcTurnSecretExpiration = 24 * 3600 * time.Second
 	webrtcPayloadMaxSize       = 1188 // 1200 - 12 (RTP header)
 )
+
+// ErrSessionNotFound is returned when a session is not found.
+var ErrSessionNotFound = errors.New("session not found")
 
 type nilWriter struct{}
 
@@ -146,6 +150,7 @@ type webRTCAddSessionCandidatesRes struct {
 }
 
 type webRTCAddSessionCandidatesReq struct {
+	pathName   string
 	secret     uuid.UUID
 	candidates []*pwebrtc.ICECandidateInit
 	res        chan webRTCAddSessionCandidatesRes
@@ -156,8 +161,15 @@ type webRTCDeleteSessionRes struct {
 }
 
 type webRTCDeleteSessionReq struct {
-	secret uuid.UUID
-	res    chan webRTCDeleteSessionRes
+	pathName string
+	secret   uuid.UUID
+	res      chan webRTCDeleteSessionRes
+}
+
+type serverPathManager interface {
+	FindPathConf(req defs.PathFindPathConfReq) (*conf.Path, error)
+	AddPublisher(req defs.PathAddPublisherReq) (defs.Path, error)
+	AddReader(req defs.PathAddReaderReq) (defs.Path, *stream.Stream, error)
 }
 
 type serverParent interface {
@@ -171,7 +183,7 @@ type Server struct {
 	ServerKey             string
 	ServerCert            string
 	AllowOrigin           string
-	TrustedProxies        conf.IPsOrCIDRs
+	TrustedProxies        conf.IPNetworks
 	ReadTimeout           conf.StringDuration
 	WriteQueueSize        int
 	LocalUDPAddress       string
@@ -181,7 +193,7 @@ type Server struct {
 	AdditionalHosts       []string
 	ICEServers            []conf.WebRTCICEServer
 	ExternalCmdPool       *externalcmd.Pool
-	PathManager           defs.PathManager
+	PathManager           serverPathManager
 	Parent                serverParent
 
 	ctx              context.Context
@@ -333,8 +345,8 @@ outer:
 
 		case req := <-s.chAddSessionCandidates:
 			sx, ok := s.sessionsBySecret[req.secret]
-			if !ok {
-				req.res <- webRTCAddSessionCandidatesRes{err: fmt.Errorf("session not found")}
+			if !ok || sx.req.pathName != req.pathName {
+				req.res <- webRTCAddSessionCandidatesRes{err: ErrSessionNotFound}
 				continue
 			}
 
@@ -342,8 +354,8 @@ outer:
 
 		case req := <-s.chDeleteSession:
 			sx, ok := s.sessionsBySecret[req.secret]
-			if !ok {
-				req.res <- webRTCDeleteSessionRes{err: fmt.Errorf("session not found")}
+			if !ok || sx.req.pathName != req.pathName {
+				req.res <- webRTCDeleteSessionRes{err: ErrSessionNotFound}
 				continue
 			}
 
@@ -371,7 +383,7 @@ outer:
 		case req := <-s.chAPISessionsGet:
 			sx := s.findSessionByUUID(req.uuid)
 			if sx == nil {
-				req.res <- serverAPISessionsGetRes{err: fmt.Errorf("session not found")}
+				req.res <- serverAPISessionsGetRes{err: ErrSessionNotFound}
 				continue
 			}
 
@@ -380,7 +392,7 @@ outer:
 		case req := <-s.chAPIConnsKick:
 			sx := s.findSessionByUUID(req.uuid)
 			if sx == nil {
-				req.res <- serverAPISessionsKickRes{err: fmt.Errorf("session not found")}
+				req.res <- serverAPISessionsKickRes{err: ErrSessionNotFound}
 				continue
 			}
 
@@ -419,30 +431,32 @@ func (s *Server) findSessionByUUID(uuid uuid.UUID) *session {
 	return nil
 }
 
-func (s *Server) generateICEServers() ([]pwebrtc.ICEServer, error) {
-	ret := make([]pwebrtc.ICEServer, len(s.ICEServers))
+func (s *Server) generateICEServers(clientConfig bool) ([]pwebrtc.ICEServer, error) {
+	ret := make([]pwebrtc.ICEServer, 0, len(s.ICEServers))
 
-	for i, server := range s.ICEServers {
-		if server.Username == "AUTH_SECRET" {
-			expireDate := time.Now().Add(webrtcTurnSecretExpiration).Unix()
+	for _, server := range s.ICEServers {
+		if !server.ClientOnly || clientConfig {
+			if server.Username == "AUTH_SECRET" {
+				expireDate := time.Now().Add(webrtcTurnSecretExpiration).Unix()
 
-			user, err := randomTurnUser()
-			if err != nil {
-				return nil, err
+				user, err := randomTurnUser()
+				if err != nil {
+					return nil, err
+				}
+
+				server.Username = strconv.FormatInt(expireDate, 10) + ":" + user
+
+				h := hmac.New(sha1.New, []byte(server.Password))
+				h.Write([]byte(server.Username))
+
+				server.Password = base64.StdEncoding.EncodeToString(h.Sum(nil))
 			}
 
-			server.Username = strconv.FormatInt(expireDate, 10) + ":" + user
-
-			h := hmac.New(sha1.New, []byte(server.Password))
-			h.Write([]byte(server.Username))
-
-			server.Password = base64.StdEncoding.EncodeToString(h.Sum(nil))
-		}
-
-		ret[i] = pwebrtc.ICEServer{
-			URLs:       []string{server.URL},
-			Username:   server.Username,
-			Credential: server.Password,
+			ret = append(ret, pwebrtc.ICEServer{
+				URLs:       []string{server.URL},
+				Username:   server.Username,
+				Credential: server.Password,
+			})
 		}
 	}
 

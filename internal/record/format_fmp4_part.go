@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/aler9/writerseeker"
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
+	"github.com/bluenviron/mediacommon/pkg/formats/fmp4/seekablebuffer"
 
 	"github.com/bluenviron/mediamtx/internal/logger"
 )
@@ -29,13 +29,13 @@ func writePart(
 		Tracks:         fmp4PartTracks,
 	}
 
-	var ws writerseeker.WriterSeeker
-	err := part.Marshal(&ws)
+	var buf seekablebuffer.Buffer
+	err := part.Marshal(&buf)
 	if err != nil {
 		return err
 	}
 
-	_, err = f.Write(ws.Bytes())
+	_, err = f.Write(buf.Bytes())
 	return err
 }
 
@@ -44,28 +44,17 @@ type formatFMP4Part struct {
 	sequenceNumber uint32
 	startDTS       time.Duration
 
-	created    time.Time
 	partTracks map[*formatFMP4Track]*fmp4.PartTrack
 	endDTS     time.Duration
 }
 
-func newFormatFMP4Part(
-	s *formatFMP4Segment,
-	sequenceNumber uint32,
-	startDTS time.Duration,
-) *formatFMP4Part {
-	return &formatFMP4Part{
-		s:              s,
-		startDTS:       startDTS,
-		sequenceNumber: sequenceNumber,
-		created:        timeNow(),
-		partTracks:     make(map[*formatFMP4Track]*fmp4.PartTrack),
-	}
+func (p *formatFMP4Part) initialize() {
+	p.partTracks = make(map[*formatFMP4Track]*fmp4.PartTrack)
 }
 
 func (p *formatFMP4Part) close() error {
 	if p.s.fi == nil {
-		p.s.path = path(p.created).encode(p.s.f.a.pathFormat)
+		p.s.path = Path{Start: p.s.startNTP}.Encode(p.s.f.a.pathFormat)
 		p.s.f.a.agent.Log(logger.Debug, "creating segment %s", p.s.path)
 
 		err := os.MkdirAll(filepath.Dir(p.s.path), 0o755)

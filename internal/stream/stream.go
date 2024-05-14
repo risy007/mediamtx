@@ -16,7 +16,8 @@ import (
 	"github.com/bluenviron/mediamtx/internal/unit"
 )
 
-type readerFunc func(unit.Unit) error
+// ReadFunc is the callback passed to AddReader().
+type ReadFunc func(unit.Unit) error
 
 // Stream is a media stream.
 // It stores tracks, readers and allows to write data to readers.
@@ -115,7 +116,7 @@ func (s *Stream) RTSPSStream(server *gortsplib.Server) *gortsplib.ServerStream {
 }
 
 // AddReader adds a reader.
-func (s *Stream) AddReader(r *asyncwriter.Writer, medi *description.Media, forma format.Format, cb readerFunc) {
+func (s *Stream) AddReader(r *asyncwriter.Writer, medi *description.Media, forma format.Format, cb ReadFunc) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -136,23 +137,22 @@ func (s *Stream) RemoveReader(r *asyncwriter.Writer) {
 	}
 }
 
-// MediasForReader returns all medias that a reader is reading.
-func (s *Stream) MediasForReader(r *asyncwriter.Writer) []*description.Media {
+// FormatsForReader returns all formats that a reader is reading.
+func (s *Stream) FormatsForReader(r *asyncwriter.Writer) []format.Format {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	var medias []*description.Media
+	var formats []format.Format
 
-	for media, sm := range s.smedias {
-		for _, sf := range sm.formats {
+	for _, sm := range s.smedias {
+		for forma, sf := range sm.formats {
 			if _, ok := sf.readers[r]; ok {
-				medias = append(medias, media)
-				break
+				formats = append(formats, forma)
 			}
 		}
 	}
 
-	return medias
+	return formats
 }
 
 // WriteUnit writes a Unit.

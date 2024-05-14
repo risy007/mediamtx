@@ -1,11 +1,13 @@
 package formatprocessor //nolint:dupl
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/bluenviron/gortsplib/v4/pkg/format"
 	"github.com/bluenviron/gortsplib/v4/pkg/format/rtpvp8"
+	"github.com/bluenviron/gortsplib/v4/pkg/rtptime"
 	"github.com/pion/rtp"
 
 	"github.com/bluenviron/mediamtx/internal/unit"
@@ -14,6 +16,7 @@ import (
 type formatProcessorVP8 struct {
 	udpMaxPayloadSize int
 	format            *format.VP8
+	timeEncoder       *rtptime.Encoder
 	encoder           *rtpvp8.Encoder
 	decoder           *rtpvp8.Decoder
 }
@@ -30,6 +33,14 @@ func newVP8(
 
 	if generateRTPPackets {
 		err := t.createEncoder()
+		if err != nil {
+			return nil, err
+		}
+
+		t.timeEncoder = &rtptime.Encoder{
+			ClockRate: forma.ClockRate(),
+		}
+		err = t.timeEncoder.Initialize()
 		if err != nil {
 			return nil, err
 		}
@@ -53,13 +64,12 @@ func (t *formatProcessorVP8) ProcessUnit(uu unit.Unit) error { //nolint:dupl
 	if err != nil {
 		return err
 	}
+	u.RTPPackets = pkts
 
-	ts := uint32(multiplyAndDivide(u.PTS, time.Duration(t.format.ClockRate()), time.Second))
-	for _, pkt := range pkts {
+	ts := t.timeEncoder.Encode(u.PTS)
+	for _, pkt := range u.RTPPackets {
 		pkt.Timestamp += ts
 	}
-
-	u.RTPPackets = pkts
 
 	return nil
 }
@@ -99,7 +109,8 @@ func (t *formatProcessorVP8) ProcessRTPPacket( //nolint:dupl
 
 		frame, err := t.decoder.Decode(pkt)
 		if err != nil {
-			if err == rtpvp8.ErrNonStartingPacketAndNoPrevious || err == rtpvp8.ErrMorePacketsNeeded {
+			if errors.Is(err, rtpvp8.ErrNonStartingPacketAndNoPrevious) ||
+				errors.Is(err, rtpvp8.ErrMorePacketsNeeded) {
 				return u, nil
 			}
 			return nil, err

@@ -1,16 +1,18 @@
 package rtsp
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"time"
 
 	"github.com/bluenviron/gortsplib/v4"
-	"github.com/bluenviron/gortsplib/v4/pkg/auth"
+	rtspauth "github.com/bluenviron/gortsplib/v4/pkg/auth"
 	"github.com/bluenviron/gortsplib/v4/pkg/base"
 	"github.com/bluenviron/gortsplib/v4/pkg/headers"
 	"github.com/google/uuid"
 
+	"github.com/bluenviron/mediamtx/internal/auth"
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/defs"
 	"github.com/bluenviron/mediamtx/internal/externalcmd"
@@ -19,7 +21,7 @@ import (
 )
 
 const (
-	rtspPauseAfterAuthError = 2 * time.Second
+	rtspAuthRealm = "IPCAM"
 )
 
 type conn struct {
@@ -31,7 +33,7 @@ type conn struct {
 	runOnConnectRestart bool
 	runOnDisconnect     string
 	externalCmdPool     *externalcmd.Pool
-	pathManager         defs.PathManager
+	pathManager         serverPathManager
 	rconn               *gortsplib.ServerConn
 	rserver             *gortsplib.Server
 	parent              *Server
@@ -117,7 +119,7 @@ func (c *conn) onDescribe(ctx *gortsplib.ServerHandlerOnDescribeCtx,
 
 	if c.authNonce == "" {
 		var err error
-		c.authNonce, err = auth.GenerateNonce()
+		c.authNonce, err = rtspauth.GenerateNonce()
 		if err != nil {
 			return &base.Response{
 				StatusCode: base.StatusInternalServerError,
@@ -130,7 +132,7 @@ func (c *conn) onDescribe(ctx *gortsplib.ServerHandlerOnDescribeCtx,
 			Name:        ctx.Path,
 			Query:       ctx.Query,
 			IP:          c.ip(),
-			Proto:       defs.AuthProtocolRTSP,
+			Proto:       auth.ProtocolRTSP,
 			ID:          &c.uuid,
 			RTSPRequest: ctx.Request,
 			RTSPNonce:   c.authNonce,
@@ -138,21 +140,22 @@ func (c *conn) onDescribe(ctx *gortsplib.ServerHandlerOnDescribeCtx,
 	})
 
 	if res.Err != nil {
-		switch terr := res.Err.(type) {
-		case *defs.ErrAuthentication:
+		var terr auth.Error
+		if errors.As(res.Err, &terr) {
 			res, err := c.handleAuthError(terr)
 			return res, nil, err
+		}
 
-		case defs.ErrPathNoOnePublishing:
+		var terr2 defs.PathNoOnePublishingError
+		if errors.As(res.Err, &terr2) {
 			return &base.Response{
 				StatusCode: base.StatusNotFound,
 			}, nil, res.Err
-
-		default:
-			return &base.Response{
-				StatusCode: base.StatusBadRequest,
-			}, nil, res.Err
 		}
+
+		return &base.Response{
+			StatusCode: base.StatusBadRequest,
+		}, nil, res.Err
 	}
 
 	if res.Redirect != "" {
@@ -189,13 +192,13 @@ func (c *conn) handleAuthError(authErr error) (*base.Response, error) {
 		return &base.Response{
 			StatusCode: base.StatusUnauthorized,
 			Header: base.Header{
-				"WWW-Authenticate": auth.GenerateWWWAuthenticate(c.authMethods, "IPCAM", c.authNonce),
+				"WWW-Authenticate": rtspauth.GenerateWWWAuthenticate(c.authMethods, rtspAuthRealm, c.authNonce),
 			},
 		}, nil
 	}
 
-	// wait some seconds to stop brute force attacks
-	<-time.After(rtspPauseAfterAuthError)
+	// wait some seconds to mitigate brute force attacks
+	<-time.After(auth.PauseAfterError)
 
 	return &base.Response{
 		StatusCode: base.StatusUnauthorized,

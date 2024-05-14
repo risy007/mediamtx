@@ -11,20 +11,19 @@ import (
 
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/defs"
-	"github.com/bluenviron/mediamtx/internal/staticsources/tester"
+	"github.com/bluenviron/mediamtx/internal/test"
 )
 
 func TestSource(t *testing.T) {
-	te := tester.New(
+	te := test.NewSourceTester(
 		func(p defs.StaticSourceParent) defs.StaticSource {
 			return &Source{
-				ReadTimeout: conf.StringDuration(10 * time.Second),
-				Parent:      p,
+				ResolvedSource: "udp://localhost:9001",
+				ReadTimeout:    conf.StringDuration(10 * time.Second),
+				Parent:         p,
 			}
 		},
-		&conf.Path{
-			Source: "udp://localhost:9001",
-		},
+		&conf.Path{},
 	)
 	defer te.Close()
 

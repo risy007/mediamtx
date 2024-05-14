@@ -2,10 +2,12 @@ package formatprocessor
 
 import (
 	"bytes"
+	"errors"
 	"time"
 
 	"github.com/bluenviron/gortsplib/v4/pkg/format"
 	"github.com/bluenviron/gortsplib/v4/pkg/format/rtph265"
+	"github.com/bluenviron/gortsplib/v4/pkg/rtptime"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
 	"github.com/pion/rtp"
 
@@ -31,7 +33,7 @@ func rtpH265ExtractParams(payload []byte) ([]byte, []byte, []byte) {
 		return nil, nil, payload
 
 	case h265.NALUType_AggregationUnit:
-		payload := payload[2:]
+		payload = payload[2:]
 		var vps []byte
 		var sps []byte
 		var pps []byte
@@ -79,9 +81,9 @@ func rtpH265ExtractParams(payload []byte) ([]byte, []byte, []byte) {
 type formatProcessorH265 struct {
 	udpMaxPayloadSize int
 	format            *format.H265
-
-	encoder *rtph265.Encoder
-	decoder *rtph265.Decoder
+	timeEncoder       *rtptime.Encoder
+	encoder           *rtph265.Encoder
+	decoder           *rtph265.Decoder
 }
 
 func newH265(
@@ -96,6 +98,14 @@ func newH265(
 
 	if generateRTPPackets {
 		err := t.createEncoder(nil, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		t.timeEncoder = &rtptime.Encoder{
+			ClockRate: forma.ClockRate(),
+		}
+		err = t.timeEncoder.Initialize()
 		if err != nil {
 			return nil, err
 		}
@@ -242,13 +252,12 @@ func (t *formatProcessorH265) ProcessUnit(uu unit.Unit) error { //nolint:dupl
 		if err != nil {
 			return err
 		}
+		u.RTPPackets = pkts
 
-		ts := uint32(multiplyAndDivide(u.PTS, time.Duration(t.format.ClockRate()), time.Second))
-		for _, pkt := range pkts {
+		ts := t.timeEncoder.Encode(u.PTS)
+		for _, pkt := range u.RTPPackets {
 			pkt.Timestamp += ts
 		}
-
-		u.RTPPackets = pkts
 	}
 
 	return nil
@@ -303,7 +312,8 @@ func (t *formatProcessorH265) ProcessRTPPacket( //nolint:dupl
 		}
 
 		if err != nil {
-			if err == rtph265.ErrNonStartingPacketAndNoPrevious || err == rtph265.ErrMorePacketsNeeded {
+			if errors.Is(err, rtph265.ErrNonStartingPacketAndNoPrevious) ||
+				errors.Is(err, rtph265.ErrMorePacketsNeeded) {
 				return u, nil
 			}
 			return nil, err
@@ -323,12 +333,11 @@ func (t *formatProcessorH265) ProcessRTPPacket( //nolint:dupl
 		if err != nil {
 			return nil, err
 		}
+		u.RTPPackets = pkts
 
-		for _, newPKT := range pkts {
+		for _, newPKT := range u.RTPPackets {
 			newPKT.Timestamp = pkt.Timestamp
 		}
-
-		u.RTPPackets = pkts
 	}
 
 	return u, nil

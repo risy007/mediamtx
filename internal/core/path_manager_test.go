@@ -7,11 +7,8 @@ import (
 
 	"github.com/bluenviron/gortsplib/v4/pkg/base"
 	"github.com/bluenviron/gortsplib/v4/pkg/headers"
-	"github.com/bluenviron/mediamtx/internal/defs"
 	"github.com/stretchr/testify/require"
 )
-
-var _ defs.PathManager = &pathManager{}
 
 func TestPathAutoDeletion(t *testing.T) {
 	for _, ca := range []string{"describe", "setup"} {
@@ -78,7 +75,7 @@ func TestPathAutoDeletion(t *testing.T) {
 				}
 			}()
 
-			data, err := p.pathManager.apiPathsList()
+			data, err := p.pathManager.APIPathsList()
 			require.NoError(t, err)
 
 			require.Equal(t, 0, len(data.Items))

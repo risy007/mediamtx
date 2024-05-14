@@ -2,17 +2,19 @@ package rtsp
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
 	"time"
 
 	"github.com/bluenviron/gortsplib/v4"
-	"github.com/bluenviron/gortsplib/v4/pkg/auth"
+	rtspauth "github.com/bluenviron/gortsplib/v4/pkg/auth"
 	"github.com/bluenviron/gortsplib/v4/pkg/base"
 	"github.com/google/uuid"
 	"github.com/pion/rtp"
 
+	"github.com/bluenviron/mediamtx/internal/auth"
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/defs"
 	"github.com/bluenviron/mediamtx/internal/externalcmd"
@@ -28,7 +30,7 @@ type session struct {
 	rconn           *gortsplib.ServerConn
 	rserver         *gortsplib.Server
 	externalCmdPool *externalcmd.Pool
-	pathManager     defs.PathManager
+	pathManager     serverPathManager
 	parent          *Server
 
 	uuid            uuid.UUID
@@ -40,6 +42,7 @@ type session struct {
 	state           gortsplib.ServerSessionState
 	transport       *gortsplib.Transport
 	pathName        string
+	query           string
 	decodeErrLogger logger.Writer
 	writeErrLogger  logger.Writer
 }
@@ -100,7 +103,7 @@ func (s *session) onAnnounce(c *conn, ctx *gortsplib.ServerHandlerOnAnnounceCtx)
 
 	if c.authNonce == "" {
 		var err error
-		c.authNonce, err = auth.GenerateNonce()
+		c.authNonce, err = rtspauth.GenerateNonce()
 		if err != nil {
 			return &base.Response{
 				StatusCode: base.StatusInternalServerError,
@@ -108,38 +111,36 @@ func (s *session) onAnnounce(c *conn, ctx *gortsplib.ServerHandlerOnAnnounceCtx)
 		}
 	}
 
-	res := s.pathManager.AddPublisher(defs.PathAddPublisherReq{
+	path, err := s.pathManager.AddPublisher(defs.PathAddPublisherReq{
 		Author: s,
 		AccessRequest: defs.PathAccessRequest{
 			Name:        ctx.Path,
 			Query:       ctx.Query,
 			Publish:     true,
 			IP:          c.ip(),
-			Proto:       defs.AuthProtocolRTSP,
+			Proto:       auth.ProtocolRTSP,
 			ID:          &c.uuid,
 			RTSPRequest: ctx.Request,
-			RTSPBaseURL: nil,
 			RTSPNonce:   c.authNonce,
 		},
 	})
-
-	if res.Err != nil {
-		switch terr := res.Err.(type) {
-		case *defs.ErrAuthentication:
+	if err != nil {
+		var terr auth.Error
+		if errors.As(err, &terr) {
 			return c.handleAuthError(terr)
-
-		default:
-			return &base.Response{
-				StatusCode: base.StatusBadRequest,
-			}, res.Err
 		}
+
+		return &base.Response{
+			StatusCode: base.StatusBadRequest,
+		}, err
 	}
 
-	s.path = res.Path
+	s.path = path
 
 	s.mutex.Lock()
 	s.state = gortsplib.ServerSessionStatePreRecord
 	s.pathName = ctx.Path
+	s.query = ctx.Query
 	s.mutex.Unlock()
 
 	return &base.Response{
@@ -171,22 +172,9 @@ func (s *session) onSetup(c *conn, ctx *gortsplib.ServerHandlerOnSetupCtx,
 
 	switch s.rsession.State() {
 	case gortsplib.ServerSessionStateInitial, gortsplib.ServerSessionStatePrePlay: // play
-		baseURL := &base.URL{
-			Scheme:   ctx.Request.URL.Scheme,
-			Host:     ctx.Request.URL.Host,
-			Path:     ctx.Path,
-			RawQuery: ctx.Query,
-		}
-
-		if ctx.Query != "" {
-			baseURL.RawQuery += "/"
-		} else {
-			baseURL.Path += "/"
-		}
-
 		if c.authNonce == "" {
 			var err error
-			c.authNonce, err = auth.GenerateNonce()
+			c.authNonce, err = rtspauth.GenerateNonce()
 			if err != nil {
 				return &base.Response{
 					StatusCode: base.StatusInternalServerError,
@@ -194,56 +182,56 @@ func (s *session) onSetup(c *conn, ctx *gortsplib.ServerHandlerOnSetupCtx,
 			}
 		}
 
-		res := s.pathManager.AddReader(defs.PathAddReaderReq{
+		path, stream, err := s.pathManager.AddReader(defs.PathAddReaderReq{
 			Author: s,
 			AccessRequest: defs.PathAccessRequest{
 				Name:        ctx.Path,
 				Query:       ctx.Query,
 				IP:          c.ip(),
-				Proto:       defs.AuthProtocolRTSP,
+				Proto:       auth.ProtocolRTSP,
 				ID:          &c.uuid,
 				RTSPRequest: ctx.Request,
-				RTSPBaseURL: baseURL,
 				RTSPNonce:   c.authNonce,
 			},
 		})
+		if err != nil {
+			var terr auth.Error
+			if errors.As(err, &terr) {
+				res, err2 := c.handleAuthError(terr)
+				return res, nil, err2
+			}
 
-		if res.Err != nil {
-			switch terr := res.Err.(type) {
-			case *defs.ErrAuthentication:
-				res, err := c.handleAuthError(terr)
-				return res, nil, err
-
-			case defs.ErrPathNoOnePublishing:
+			var terr2 defs.PathNoOnePublishingError
+			if errors.As(err, &terr2) {
 				return &base.Response{
 					StatusCode: base.StatusNotFound,
-				}, nil, res.Err
-
-			default:
-				return &base.Response{
-					StatusCode: base.StatusBadRequest,
-				}, nil, res.Err
+				}, nil, err
 			}
+
+			return &base.Response{
+				StatusCode: base.StatusBadRequest,
+			}, nil, err
 		}
 
-		s.path = res.Path
-		s.stream = res.Stream
+		s.path = path
+		s.stream = stream
 
 		s.mutex.Lock()
 		s.state = gortsplib.ServerSessionStatePrePlay
 		s.pathName = ctx.Path
+		s.query = ctx.Query
 		s.mutex.Unlock()
 
-		var stream *gortsplib.ServerStream
+		var rstream *gortsplib.ServerStream
 		if !s.isTLS {
-			stream = res.Stream.RTSPStream(s.rserver)
+			rstream = stream.RTSPStream(s.rserver)
 		} else {
-			stream = res.Stream.RTSPSStream(s.rserver)
+			rstream = stream.RTSPSStream(s.rserver)
 		}
 
 		return &base.Response{
 			StatusCode: base.StatusOK,
-		}, stream, nil
+		}, rstream, nil
 
 	default: // record
 		return &base.Response{
@@ -285,18 +273,18 @@ func (s *session) onPlay(_ *gortsplib.ServerHandlerOnPlayCtx) (*base.Response, e
 
 // onRecord is called by rtspServer.
 func (s *session) onRecord(_ *gortsplib.ServerHandlerOnRecordCtx) (*base.Response, error) {
-	res := s.path.StartPublisher(defs.PathStartPublisherReq{
+	stream, err := s.path.StartPublisher(defs.PathStartPublisherReq{
 		Author:             s,
 		Desc:               s.rsession.AnnouncedDescription(),
 		GenerateRTPPackets: false,
 	})
-	if res.Err != nil {
+	if err != nil {
 		return &base.Response{
 			StatusCode: base.StatusBadRequest,
-		}, res.Err
+		}, err
 	}
 
-	s.stream = res.Stream
+	s.stream = stream
 
 	for _, medi := range s.rsession.AnnouncedDescription().Medias {
 		for _, forma := range medi.Formats {
@@ -309,7 +297,7 @@ func (s *session) onRecord(_ *gortsplib.ServerHandlerOnRecordCtx) (*base.Respons
 					return
 				}
 
-				res.Stream.WriteRTPPacket(cmedi, cforma, pkt, time.Now(), pts)
+				stream.WriteRTPPacket(cmedi, cforma, pkt, time.Now(), pts)
 			})
 		}
 	}
@@ -400,7 +388,8 @@ func (s *session) apiItem() *defs.APIRTSPSession {
 			}
 			return defs.APIRTSPSessionStateIdle
 		}(),
-		Path: s.pathName,
+		Path:  s.pathName,
+		Query: s.query,
 		Transport: func() *string {
 			if s.transport == nil {
 				return nil

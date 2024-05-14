@@ -6,6 +6,7 @@ import (
 
 	"github.com/bluenviron/gortsplib/v4/pkg/format"
 	"github.com/bluenviron/gortsplib/v4/pkg/format/rtplpcm"
+	"github.com/bluenviron/gortsplib/v4/pkg/rtptime"
 	"github.com/pion/rtp"
 
 	"github.com/bluenviron/mediamtx/internal/unit"
@@ -14,6 +15,7 @@ import (
 type formatProcessorLPCM struct {
 	udpMaxPayloadSize int
 	format            *format.LPCM
+	timeEncoder       *rtptime.Encoder
 	encoder           *rtplpcm.Encoder
 	decoder           *rtplpcm.Decoder
 }
@@ -33,6 +35,14 @@ func newLPCM(
 		if err != nil {
 			return nil, err
 		}
+
+		t.timeEncoder = &rtptime.Encoder{
+			ClockRate: forma.ClockRate(),
+		}
+		err = t.timeEncoder.Initialize()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return t, nil
@@ -41,6 +51,9 @@ func newLPCM(
 func (t *formatProcessorLPCM) createEncoder() error {
 	t.encoder = &rtplpcm.Encoder{
 		PayloadMaxSize: t.udpMaxPayloadSize - 12,
+		PayloadType:    t.format.PayloadTyp,
+		BitDepth:       t.format.BitDepth,
+		ChannelCount:   t.format.ChannelCount,
 	}
 	return t.encoder.Init()
 }
@@ -52,13 +65,12 @@ func (t *formatProcessorLPCM) ProcessUnit(uu unit.Unit) error { //nolint:dupl
 	if err != nil {
 		return err
 	}
+	u.RTPPackets = pkts
 
-	ts := uint32(multiplyAndDivide(u.PTS, time.Duration(t.format.ClockRate()), time.Second))
-	for _, pkt := range pkts {
+	ts := t.timeEncoder.Encode(u.PTS)
+	for _, pkt := range u.RTPPackets {
 		pkt.Timestamp += ts
 	}
-
-	u.RTPPackets = pkts
 
 	return nil
 }

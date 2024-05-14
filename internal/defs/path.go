@@ -8,18 +8,19 @@ import (
 	"github.com/bluenviron/gortsplib/v4/pkg/description"
 	"github.com/google/uuid"
 
+	"github.com/bluenviron/mediamtx/internal/auth"
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/externalcmd"
 	"github.com/bluenviron/mediamtx/internal/stream"
 )
 
-// ErrPathNoOnePublishing is returned when no one is publishing.
-type ErrPathNoOnePublishing struct {
+// PathNoOnePublishingError is returned when no one is publishing.
+type PathNoOnePublishingError struct {
 	PathName string
 }
 
 // Error implements the error interface.
-func (e ErrPathNoOnePublishing) Error() string {
+func (e PathNoOnePublishingError) Error() string {
 	return fmt.Sprintf("no one is publishing to path '%s'", e.PathName)
 }
 
@@ -28,7 +29,7 @@ type Path interface {
 	Name() string
 	SafeConf() *conf.Path
 	ExternalCmdEnv() externalcmd.Environment
-	StartPublisher(req PathStartPublisherReq) PathStartPublisherRes
+	StartPublisher(req PathStartPublisherReq) (*stream.Stream, error)
 	StopPublisher(req PathStopPublisherReq)
 	RemovePublisher(req PathRemovePublisherReq)
 	RemoveReader(req PathRemoveReaderReq)
@@ -45,23 +46,43 @@ type PathAccessRequest struct {
 	IP          net.IP
 	User        string
 	Pass        string
-	Proto       AuthProtocol
+	Proto       auth.Protocol
 	ID          *uuid.UUID
 	RTSPRequest *base.Request
-	RTSPBaseURL *base.URL
 	RTSPNonce   string
 }
 
-// PathGetConfForPathRes contains the response of GetConfForPath().
-type PathGetConfForPathRes struct {
+// ToAuthRequest converts a path access request into an authentication request.
+func (r *PathAccessRequest) ToAuthRequest() *auth.Request {
+	return &auth.Request{
+		User: r.User,
+		Pass: r.Pass,
+		IP:   r.IP,
+		Action: func() conf.AuthAction {
+			if r.Publish {
+				return conf.AuthActionPublish
+			}
+			return conf.AuthActionRead
+		}(),
+		Path:        r.Name,
+		Protocol:    r.Proto,
+		ID:          r.ID,
+		Query:       r.Query,
+		RTSPRequest: r.RTSPRequest,
+		RTSPNonce:   r.RTSPNonce,
+	}
+}
+
+// PathFindPathConfRes contains the response of FindPathConf().
+type PathFindPathConfRes struct {
 	Conf *conf.Path
 	Err  error
 }
 
-// PathGetConfForPathReq contains arguments of GetConfForPath().
-type PathGetConfForPathReq struct {
+// PathFindPathConfReq contains arguments of FindPathConf().
+type PathFindPathConfReq struct {
 	AccessRequest PathAccessRequest
-	Res           chan PathGetConfForPathRes
+	Res           chan PathFindPathConfRes
 }
 
 // PathDescribeRes contains the response of Describe().

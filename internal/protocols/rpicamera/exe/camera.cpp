@@ -126,12 +126,22 @@ static void set_hdr(bool hdr) {
 }
 
 bool camera_create(const parameters_t *params, camera_frame_cb frame_cb, camera_t **cam) {
+    std::unique_ptr<CameraPriv> camp = std::make_unique<CameraPriv>();
+
     set_hdr(params->hdr);
+
+    if (strcmp(params->log_level, "debug") == 0) {
+        setenv("LIBCAMERA_LOG_LEVELS", "*:DEBUG", 1);
+    } else if (strcmp(params->log_level, "info") == 0) {
+        setenv("LIBCAMERA_LOG_LEVELS", "*:INFO", 1);
+    } else if (strcmp(params->log_level, "warn") == 0) {
+       setenv("LIBCAMERA_LOG_LEVELS", "*:WARN", 1);
+    } else { // error
+        setenv("LIBCAMERA_LOG_LEVELS", "*:ERROR", 1);
+    }
 
     // We make sure to set the environment variable before libcamera init
     setenv("LIBCAMERA_RPI_TUNING_FILE", params->tuning_file, 1);
-
-    std::unique_ptr<CameraPriv> camp = std::make_unique<CameraPriv>();
 
     camp->camera_manager = std::make_unique<CameraManager>();
     int ret = camp->camera_manager->start();
@@ -335,6 +345,11 @@ static void fill_dynamic_controls(ControlList *ctrls, const parameters_t *params
         awb_mode = controls::AwbAuto;
     }
     ctrls->set(controls::AwbMode, awb_mode);
+
+    if (params->awb_gain_red > 0 && params->awb_gain_blue > 0) {
+        ctrls->set(controls::ColourGains,
+            Span<const float, 2>({params->awb_gain_red, params->awb_gain_blue}));
+    }
 
     int denoise_mode;
     if (strcmp(params->denoise, "cdn_off") == 0) {

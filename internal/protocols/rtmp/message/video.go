@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/notedit/rtmp/format/flv/flvio"
-
 	"github.com/bluenviron/mediamtx/internal/protocols/rtmp/rawmessage"
 )
 
@@ -41,8 +39,7 @@ type Video struct {
 	Payload         []byte
 }
 
-// Unmarshal implements Message.
-func (m *Video) Unmarshal(raw *rawmessage.Message) error {
+func (m *Video) unmarshal(raw *rawmessage.Message) error {
 	m.ChunkStreamID = raw.ChunkStreamID
 	m.DTS = raw.Timestamp
 	m.MessageStreamID = raw.MessageStreamID
@@ -51,7 +48,7 @@ func (m *Video) Unmarshal(raw *rawmessage.Message) error {
 		return fmt.Errorf("invalid body size")
 	}
 
-	m.IsKeyFrame = (raw.Body[0] >> 4) == flvio.FRAME_KEY
+	m.IsKeyFrame = (raw.Body[0] >> 4) == 1
 
 	m.Codec = raw.Body[0] & 0x0F
 	switch m.Codec {
@@ -78,14 +75,13 @@ func (m Video) marshalBodySize() int {
 	return 5 + len(m.Payload)
 }
 
-// Marshal implements Message.
-func (m Video) Marshal() (*rawmessage.Message, error) {
+func (m Video) marshal() (*rawmessage.Message, error) {
 	body := make([]byte, m.marshalBodySize())
 
 	if m.IsKeyFrame {
-		body[0] = flvio.FRAME_KEY << 4
+		body[0] = 1 << 4
 	} else {
-		body[0] = flvio.FRAME_INTER << 4
+		body[0] = 2 << 4
 	}
 	body[0] |= m.Codec
 	body[1] = uint8(m.Type)

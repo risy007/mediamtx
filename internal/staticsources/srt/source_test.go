@@ -6,12 +6,12 @@ import (
 	"time"
 
 	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
-	"github.com/datarhei/gosrt"
+	srt "github.com/datarhei/gosrt"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/defs"
-	"github.com/bluenviron/mediamtx/internal/staticsources/tester"
+	"github.com/bluenviron/mediamtx/internal/test"
 )
 
 func TestSource(t *testing.T) {
@@ -45,27 +45,22 @@ func TestSource(t *testing.T) {
 		}})
 		require.NoError(t, err)
 
-		err = w.WriteH26x(track, 0, 0, true, [][]byte{{ // non-IDR
-			5, 2,
-		}})
-		require.NoError(t, err)
-
 		err = bw.Flush()
 		require.NoError(t, err)
 
-		time.Sleep(1000 * time.Millisecond)
+		// wait for internal SRT queue to be written
+		time.Sleep(500 * time.Millisecond)
 	}()
 
-	te := tester.New(
+	te := test.NewSourceTester(
 		func(p defs.StaticSourceParent) defs.StaticSource {
 			return &Source{
-				ReadTimeout: conf.StringDuration(10 * time.Second),
-				Parent:      p,
+				ResolvedSource: "srt://localhost:9002?streamid=sidname&passphrase=ttest1234567",
+				ReadTimeout:    conf.StringDuration(10 * time.Second),
+				Parent:         p,
 			}
 		},
-		&conf.Path{
-			Source: "srt://localhost:9002?streamid=sidname&passphrase=ttest1234567",
-		},
+		&conf.Path{},
 	)
 	defer te.Close()
 

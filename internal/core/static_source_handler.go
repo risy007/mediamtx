@@ -30,8 +30,13 @@ type staticSourceHandlerParent interface {
 
 // staticSourceHandler is a static source handler.
 type staticSourceHandler struct {
-	conf   *conf.Path
-	parent staticSourceHandlerParent
+	conf           *conf.Path
+	logLevel       conf.LogLevel
+	readTimeout    conf.StringDuration
+	writeTimeout   conf.StringDuration
+	writeQueueSize int
+	resolvedSource string
+	parent         staticSourceHandlerParent
 
 	ctx       context.Context
 	ctxCancel func()
@@ -47,72 +52,67 @@ type staticSourceHandler struct {
 	done chan struct{}
 }
 
-func newStaticSourceHandler(
-	cnf *conf.Path,
-	readTimeout conf.StringDuration,
-	writeTimeout conf.StringDuration,
-	writeQueueSize int,
-	parent staticSourceHandlerParent,
-) *staticSourceHandler {
-	s := &staticSourceHandler{
-		conf:                  cnf,
-		parent:                parent,
-		chReloadConf:          make(chan *conf.Path),
-		chInstanceSetReady:    make(chan defs.PathSourceStaticSetReadyReq),
-		chInstanceSetNotReady: make(chan defs.PathSourceStaticSetNotReadyReq),
-	}
+func (s *staticSourceHandler) initialize() {
+	s.chReloadConf = make(chan *conf.Path)
+	s.chInstanceSetReady = make(chan defs.PathSourceStaticSetReadyReq)
+	s.chInstanceSetNotReady = make(chan defs.PathSourceStaticSetNotReadyReq)
 
 	switch {
-	case strings.HasPrefix(cnf.Source, "rtsp://") ||
-		strings.HasPrefix(cnf.Source, "rtsps://"):
+	case strings.HasPrefix(s.resolvedSource, "rtsp://") ||
+		strings.HasPrefix(s.resolvedSource, "rtsps://"):
 		s.instance = &rtspsource.Source{
-			ReadTimeout:    readTimeout,
-			WriteTimeout:   writeTimeout,
-			WriteQueueSize: writeQueueSize,
+			ResolvedSource: s.resolvedSource,
+			ReadTimeout:    s.readTimeout,
+			WriteTimeout:   s.writeTimeout,
+			WriteQueueSize: s.writeQueueSize,
 			Parent:         s,
 		}
 
-	case strings.HasPrefix(cnf.Source, "rtmp://") ||
-		strings.HasPrefix(cnf.Source, "rtmps://"):
+	case strings.HasPrefix(s.resolvedSource, "rtmp://") ||
+		strings.HasPrefix(s.resolvedSource, "rtmps://"):
 		s.instance = &rtmpsource.Source{
-			ReadTimeout:  readTimeout,
-			WriteTimeout: writeTimeout,
-			Parent:       s,
+			ResolvedSource: s.resolvedSource,
+			ReadTimeout:    s.readTimeout,
+			WriteTimeout:   s.writeTimeout,
+			Parent:         s,
 		}
 
-	case strings.HasPrefix(cnf.Source, "http://") ||
-		strings.HasPrefix(cnf.Source, "https://"):
+	case strings.HasPrefix(s.resolvedSource, "http://") ||
+		strings.HasPrefix(s.resolvedSource, "https://"):
 		s.instance = &hlssource.Source{
-			ReadTimeout: readTimeout,
-			Parent:      s,
+			ResolvedSource: s.resolvedSource,
+			ReadTimeout:    s.readTimeout,
+			Parent:         s,
 		}
 
-	case strings.HasPrefix(cnf.Source, "udp://"):
+	case strings.HasPrefix(s.resolvedSource, "udp://"):
 		s.instance = &udpsource.Source{
-			ReadTimeout: readTimeout,
-			Parent:      s,
+			ResolvedSource: s.resolvedSource,
+			ReadTimeout:    s.readTimeout,
+			Parent:         s,
 		}
 
-	case strings.HasPrefix(cnf.Source, "srt://"):
+	case strings.HasPrefix(s.resolvedSource, "srt://"):
 		s.instance = &srtsource.Source{
-			ReadTimeout: readTimeout,
-			Parent:      s,
+			ResolvedSource: s.resolvedSource,
+			ReadTimeout:    s.readTimeout,
+			Parent:         s,
 		}
 
-	case strings.HasPrefix(cnf.Source, "whep://") ||
-		strings.HasPrefix(cnf.Source, "wheps://"):
+	case strings.HasPrefix(s.resolvedSource, "whep://") ||
+		strings.HasPrefix(s.resolvedSource, "wheps://"):
 		s.instance = &webrtcsource.Source{
-			ReadTimeout: readTimeout,
-			Parent:      s,
+			ResolvedSource: s.resolvedSource,
+			ReadTimeout:    s.readTimeout,
+			Parent:         s,
 		}
 
-	case cnf.Source == "rpiCamera":
+	case s.resolvedSource == "rpiCamera":
 		s.instance = &rpicamerasource.Source{
-			Parent: s,
+			LogLevel: s.logLevel,
+			Parent:   s,
 		}
 	}
-
-	return s
 }
 
 func (s *staticSourceHandler) close(reason string) {
@@ -180,7 +180,7 @@ func (s *staticSourceHandler) run() {
 	recreate()
 
 	recreating := false
-	recreateTimer := newEmptyTimer()
+	recreateTimer := emptyTimer()
 
 	for {
 		select {
@@ -224,10 +224,18 @@ func (s *staticSourceHandler) run() {
 }
 
 func (s *staticSourceHandler) reloadConf(newConf *conf.Path) {
-	select {
-	case s.chReloadConf <- newConf:
-	case <-s.ctx.Done():
+	ctx := s.ctx
+
+	if !s.running {
+		return
 	}
+
+	go func() {
+		select {
+		case s.chReloadConf <- newConf:
+		case <-ctx.Done():
+		}
+	}()
 }
 
 // APISourceDescribe instanceements source.

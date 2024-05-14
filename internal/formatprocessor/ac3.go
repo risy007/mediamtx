@@ -1,11 +1,13 @@
 package formatprocessor
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/bluenviron/gortsplib/v4/pkg/format"
 	"github.com/bluenviron/gortsplib/v4/pkg/format/rtpac3"
+	"github.com/bluenviron/gortsplib/v4/pkg/rtptime"
 	"github.com/pion/rtp"
 
 	"github.com/bluenviron/mediamtx/internal/unit"
@@ -14,6 +16,7 @@ import (
 type formatProcessorAC3 struct {
 	udpMaxPayloadSize int
 	format            *format.AC3
+	timeEncoder       *rtptime.Encoder
 	encoder           *rtpac3.Encoder
 	decoder           *rtpac3.Decoder
 }
@@ -30,6 +33,14 @@ func newAC3(
 
 	if generateRTPPackets {
 		err := t.createEncoder()
+		if err != nil {
+			return nil, err
+		}
+
+		t.timeEncoder = &rtptime.Encoder{
+			ClockRate: forma.ClockRate(),
+		}
+		err = t.timeEncoder.Initialize()
 		if err != nil {
 			return nil, err
 		}
@@ -52,13 +63,12 @@ func (t *formatProcessorAC3) ProcessUnit(uu unit.Unit) error { //nolint:dupl
 	if err != nil {
 		return err
 	}
+	u.RTPPackets = pkts
 
-	ts := uint32(multiplyAndDivide(u.PTS, time.Duration(t.format.ClockRate()), time.Second))
-	for _, pkt := range pkts {
+	ts := t.timeEncoder.Encode(u.PTS)
+	for _, pkt := range u.RTPPackets {
 		pkt.Timestamp += ts
 	}
-
-	u.RTPPackets = pkts
 
 	return nil
 }
@@ -98,7 +108,8 @@ func (t *formatProcessorAC3) ProcessRTPPacket( //nolint:dupl
 
 		frames, err := t.decoder.Decode(pkt)
 		if err != nil {
-			if err == rtpac3.ErrNonStartingPacketAndNoPrevious || err == rtpac3.ErrMorePacketsNeeded {
+			if errors.Is(err, rtpac3.ErrNonStartingPacketAndNoPrevious) ||
+				errors.Is(err, rtpac3.ErrMorePacketsNeeded) {
 				return u, nil
 			}
 			return nil, err

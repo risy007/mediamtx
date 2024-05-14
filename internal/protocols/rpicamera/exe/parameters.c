@@ -37,7 +37,9 @@ bool parameters_unserialize(parameters_t *params, const uint8_t *buf, size_t buf
         char *key = strsep(&entry, ":");
         char *val = strsep(&entry, ":");
 
-        if (strcmp(key, "CameraID") == 0) {
+        if (strcmp(key, "LogLevel") == 0) {
+            params->log_level = base64_decode(val);
+        } else if (strcmp(key, "CameraID") == 0) {
             params->camera_id = atoi(val);
         } else if (strcmp(key, "Width") == 0) {
             params->width = atoi(val);
@@ -59,6 +61,10 @@ bool parameters_unserialize(parameters_t *params, const uint8_t *buf, size_t buf
             params->exposure = base64_decode(val);
         } else if (strcmp(key, "AWB") == 0) {
             params->awb = base64_decode(val);
+        } else if (strcmp(key, "AWBGainRed") == 0) {
+            params->awb_gain_red = atof(val);
+        } else if (strcmp(key, "AWBGainBlue") == 0) {
+            params->awb_gain_blue = atof(val);
         } else if (strcmp(key, "Denoise") == 0) {
             params->denoise = base64_decode(val);
         } else if (strcmp(key, "Shutter") == 0) {

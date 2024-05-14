@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/bluenviron/mediamtx/internal/asyncwriter"
+	"github.com/bluenviron/mediamtx/internal/auth"
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/defs"
 	"github.com/bluenviron/mediamtx/internal/externalcmd"
@@ -62,7 +62,7 @@ type conn struct {
 	runOnDisconnect     string
 	wg                  *sync.WaitGroup
 	externalCmdPool     *externalcmd.Pool
-	pathManager         defs.PathManager
+	pathManager         serverPathManager
 	parent              *Server
 
 	ctx       context.Context
@@ -72,6 +72,7 @@ type conn struct {
 	mutex     sync.RWMutex
 	state     connState
 	pathName  string
+	query     string
 	sconn     srt.Conn
 
 	chNew     chan srtNewConnReq
@@ -146,66 +147,45 @@ func (c *conn) runInner() error {
 }
 
 func (c *conn) runInner2(req srtNewConnReq) (bool, error) {
-	parts := strings.Split(req.connReq.StreamId(), ":")
-	if (len(parts) < 2 || len(parts) > 5) || (parts[0] != "read" && parts[0] != "publish") {
-		return false, fmt.Errorf("invalid streamid '%s':"+
-			" it must be 'action:pathname[:query]' or 'action:pathname:user:pass[:query]', "+
-			"where action is either read or publish, pathname is the path name, user and pass are the credentials, "+
-			"query is an optional token containing additional information",
-			req.connReq.StreamId())
+	var streamID streamID
+	err := streamID.unmarshal(req.connReq.StreamId())
+	if err != nil {
+		return false, fmt.Errorf("invalid stream ID '%s': %w", req.connReq.StreamId(), err)
 	}
 
-	pathName := parts[1]
-	user := ""
-	pass := ""
-	query := ""
-
-	if len(parts) == 4 || len(parts) == 5 {
-		user, pass = parts[2], parts[3]
+	if streamID.mode == streamIDModePublish {
+		return c.runPublish(req, &streamID)
 	}
-
-	if len(parts) == 3 {
-		query = parts[2]
-	}
-
-	if len(parts) == 5 {
-		query = parts[4]
-	}
-
-	if parts[0] == "publish" {
-		return c.runPublish(req, pathName, user, pass, query)
-	}
-	return c.runRead(req, pathName, user, pass, query)
+	return c.runRead(req, &streamID)
 }
 
-func (c *conn) runPublish(req srtNewConnReq, pathName string, user string, pass string, query string) (bool, error) {
-	res := c.pathManager.AddPublisher(defs.PathAddPublisherReq{
+func (c *conn) runPublish(req srtNewConnReq, streamID *streamID) (bool, error) {
+	path, err := c.pathManager.AddPublisher(defs.PathAddPublisherReq{
 		Author: c,
 		AccessRequest: defs.PathAccessRequest{
-			Name:    pathName,
+			Name:    streamID.path,
 			IP:      c.ip(),
 			Publish: true,
-			User:    user,
-			Pass:    pass,
-			Proto:   defs.AuthProtocolSRT,
+			User:    streamID.user,
+			Pass:    streamID.pass,
+			Proto:   auth.ProtocolSRT,
 			ID:      &c.uuid,
-			Query:   query,
+			Query:   streamID.query,
 		},
 	})
-
-	if res.Err != nil {
-		if terr, ok := res.Err.(*defs.ErrAuthentication); ok {
-			// TODO: re-enable. Currently this freezes the listener.
-			// wait some seconds to stop brute force attacks
-			// <-time.After(srtPauseAfterAuthError)
+	if err != nil {
+		var terr auth.Error
+		if errors.As(err, &terr) {
+			// wait some seconds to mitigate brute force attacks
+			<-time.After(auth.PauseAfterError)
 			return false, terr
 		}
-		return false, res.Err
+		return false, err
 	}
 
-	defer res.Path.RemovePublisher(defs.PathRemovePublisherReq{Author: c})
+	defer path.RemovePublisher(defs.PathRemovePublisherReq{Author: c})
 
-	err := srtCheckPassphrase(req.connReq, res.Path.SafeConf().SRTPublishPassphrase)
+	err = srtCheckPassphrase(req.connReq, path.SafeConf().SRTPublishPassphrase)
 	if err != nil {
 		return false, err
 	}
@@ -217,13 +197,14 @@ func (c *conn) runPublish(req srtNewConnReq, pathName string, user string, pass 
 
 	c.mutex.Lock()
 	c.state = connStatePublish
-	c.pathName = pathName
+	c.pathName = streamID.path
+	c.query = streamID.query
 	c.sconn = sconn
 	c.mutex.Unlock()
 
 	readerErr := make(chan error)
 	go func() {
-		readerErr <- c.runPublishReader(sconn, res.Path)
+		readerErr <- c.runPublishReader(sconn, path)
 	}()
 
 	select {
@@ -258,16 +239,14 @@ func (c *conn) runPublishReader(sconn srt.Conn, path defs.Path) error {
 		return err
 	}
 
-	rres := path.StartPublisher(defs.PathStartPublisherReq{
+	stream, err = path.StartPublisher(defs.PathStartPublisherReq{
 		Author:             c,
 		Desc:               &description.Session{Medias: medias},
 		GenerateRTPPackets: true,
 	})
-	if rres.Err != nil {
-		return rres.Err
+	if err != nil {
+		return err
 	}
-
-	stream = rres.Stream
 
 	for {
 		err := r.Read()
@@ -277,33 +256,32 @@ func (c *conn) runPublishReader(sconn srt.Conn, path defs.Path) error {
 	}
 }
 
-func (c *conn) runRead(req srtNewConnReq, pathName string, user string, pass string, query string) (bool, error) {
-	res := c.pathManager.AddReader(defs.PathAddReaderReq{
+func (c *conn) runRead(req srtNewConnReq, streamID *streamID) (bool, error) {
+	path, stream, err := c.pathManager.AddReader(defs.PathAddReaderReq{
 		Author: c,
 		AccessRequest: defs.PathAccessRequest{
-			Name:  pathName,
+			Name:  streamID.path,
 			IP:    c.ip(),
-			User:  user,
-			Pass:  pass,
-			Proto: defs.AuthProtocolSRT,
+			User:  streamID.user,
+			Pass:  streamID.pass,
+			Proto: auth.ProtocolSRT,
 			ID:    &c.uuid,
-			Query: query,
+			Query: streamID.query,
 		},
 	})
-
-	if res.Err != nil {
-		if terr, ok := res.Err.(*defs.ErrAuthentication); ok {
-			// TODO: re-enable. Currently this freezes the listener.
-			// wait some seconds to stop brute force attacks
-			// <-time.After(srtPauseAfterAuthError)
-			return false, terr
+	if err != nil {
+		var terr auth.Error
+		if errors.As(err, &terr) {
+			// wait some seconds to mitigate brute force attacks
+			<-time.After(auth.PauseAfterError)
+			return false, err
 		}
-		return false, res.Err
+		return false, err
 	}
 
-	defer res.Path.RemoveReader(defs.PathRemoveReaderReq{Author: c})
+	defer path.RemoveReader(defs.PathRemoveReaderReq{Author: c})
 
-	err := srtCheckPassphrase(req.connReq, res.Path.SafeConf().SRTReadPassphrase)
+	err = srtCheckPassphrase(req.connReq, path.SafeConf().SRTReadPassphrase)
 	if err != nil {
 		return false, err
 	}
@@ -316,31 +294,32 @@ func (c *conn) runRead(req srtNewConnReq, pathName string, user string, pass str
 
 	c.mutex.Lock()
 	c.state = connStateRead
-	c.pathName = pathName
+	c.pathName = streamID.path
+	c.query = streamID.query
 	c.sconn = sconn
 	c.mutex.Unlock()
 
 	writer := asyncwriter.New(c.writeQueueSize, c)
 
-	defer res.Stream.RemoveReader(writer)
+	defer stream.RemoveReader(writer)
 
 	bw := bufio.NewWriterSize(sconn, srtMaxPayloadSize(c.udpMaxPayloadSize))
 
-	err = mpegts.FromStream(res.Stream, writer, bw, sconn, time.Duration(c.writeTimeout))
+	err = mpegts.FromStream(stream, writer, bw, sconn, time.Duration(c.writeTimeout))
 	if err != nil {
 		return true, err
 	}
 
 	c.Log(logger.Info, "is reading from path '%s', %s",
-		res.Path.Name, defs.MediasInfo(res.Stream.MediasForReader(writer)))
+		path.Name(), defs.FormatsInfo(stream.FormatsForReader(writer)))
 
 	onUnreadHook := hooks.OnRead(hooks.OnReadParams{
 		Logger:          c,
 		ExternalCmdPool: c.externalCmdPool,
-		Conf:            res.Path.SafeConf(),
-		ExternalCmdEnv:  res.Path.ExternalCmdEnv(),
+		Conf:            path.SafeConf(),
+		ExternalCmdEnv:  path.ExternalCmdEnv(),
 		Reader:          c.APIReaderDescribe(),
-		Query:           query,
+		Query:           streamID.query,
 	})
 	defer onUnreadHook()
 
@@ -348,10 +327,10 @@ func (c *conn) runRead(req srtNewConnReq, pathName string, user string, pass str
 	sconn.SetReadDeadline(time.Time{})
 
 	writer.Start()
+	defer writer.Stop()
 
 	select {
 	case <-c.ctx.Done():
-		writer.Stop()
 		return true, fmt.Errorf("terminated")
 
 	case err := <-writer.Error():
@@ -407,17 +386,7 @@ func (c *conn) apiItem() *defs.APISRTConn {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
-	bytesReceived := uint64(0)
-	bytesSent := uint64(0)
-
-	if c.sconn != nil {
-		var s srt.Statistics
-		c.sconn.Stats(&s)
-		bytesReceived = s.Accumulated.ByteRecv
-		bytesSent = s.Accumulated.ByteSent
-	}
-
-	return &defs.APISRTConn{
+	item := &defs.APISRTConn{
 		ID:         c.uuid,
 		Created:    c.created,
 		RemoteAddr: c.connReq.RemoteAddr().String(),
@@ -433,8 +402,68 @@ func (c *conn) apiItem() *defs.APISRTConn {
 				return defs.APISRTConnStateIdle
 			}
 		}(),
-		Path:          c.pathName,
-		BytesReceived: bytesReceived,
-		BytesSent:     bytesSent,
+		Path:  c.pathName,
+		Query: c.query,
 	}
+
+	if c.sconn != nil {
+		var s srt.Statistics
+		c.sconn.Stats(&s)
+
+		item.PacketsSent = s.Accumulated.PktSent
+		item.PacketsReceived = s.Accumulated.PktRecv
+		item.PacketsSentUnique = s.Accumulated.PktSentUnique
+		item.PacketsReceivedUnique = s.Accumulated.PktRecvUnique
+		item.PacketsSendLoss = s.Accumulated.PktSendLoss
+		item.PacketsReceivedLoss = s.Accumulated.PktRecvLoss
+		item.PacketsRetrans = s.Accumulated.PktRetrans
+		item.PacketsReceivedRetrans = s.Accumulated.PktRecvRetrans
+		item.PacketsSentACK = s.Accumulated.PktSentACK
+		item.PacketsReceivedACK = s.Accumulated.PktRecvACK
+		item.PacketsSentNAK = s.Accumulated.PktSentNAK
+		item.PacketsReceivedNAK = s.Accumulated.PktRecvNAK
+		item.PacketsSentKM = s.Accumulated.PktSentKM
+		item.PacketsReceivedKM = s.Accumulated.PktRecvKM
+		item.UsSndDuration = s.Accumulated.UsSndDuration
+		item.PacketsReceivedBelated = s.Accumulated.PktRecvBelated
+		item.PacketsSendDrop = s.Accumulated.PktSendDrop
+		item.PacketsReceivedDrop = s.Accumulated.PktRecvDrop
+		item.PacketsReceivedUndecrypt = s.Accumulated.PktRecvUndecrypt
+		item.BytesSent = s.Accumulated.ByteSent
+		item.BytesReceived = s.Accumulated.ByteRecv
+		item.BytesSentUnique = s.Accumulated.ByteSentUnique
+		item.BytesReceivedUnique = s.Accumulated.ByteRecvUnique
+		item.BytesReceivedLoss = s.Accumulated.ByteRecvLoss
+		item.BytesRetrans = s.Accumulated.ByteRetrans
+		item.BytesReceivedRetrans = s.Accumulated.ByteRecvRetrans
+		item.BytesReceivedBelated = s.Accumulated.ByteRecvBelated
+		item.BytesSendDrop = s.Accumulated.ByteSendDrop
+		item.BytesReceivedDrop = s.Accumulated.ByteRecvDrop
+		item.BytesReceivedUndecrypt = s.Accumulated.ByteRecvUndecrypt
+		item.UsPacketsSendPeriod = s.Instantaneous.UsPktSendPeriod
+		item.PacketsFlowWindow = s.Instantaneous.PktFlowWindow
+		item.PacketsFlightSize = s.Instantaneous.PktFlightSize
+		item.MsRTT = s.Instantaneous.MsRTT
+		item.MbpsSendRate = s.Instantaneous.MbpsSentRate
+		item.MbpsReceiveRate = s.Instantaneous.MbpsRecvRate
+		item.MbpsLinkCapacity = s.Instantaneous.MbpsLinkCapacity
+		item.BytesAvailSendBuf = s.Instantaneous.ByteAvailSendBuf
+		item.BytesAvailReceiveBuf = s.Instantaneous.ByteAvailRecvBuf
+		item.MbpsMaxBW = s.Instantaneous.MbpsMaxBW
+		item.ByteMSS = s.Instantaneous.ByteMSS
+		item.PacketsSendBuf = s.Instantaneous.PktSendBuf
+		item.BytesSendBuf = s.Instantaneous.ByteSendBuf
+		item.MsSendBuf = s.Instantaneous.MsSendBuf
+		item.MsSendTsbPdDelay = s.Instantaneous.MsSendTsbPdDelay
+		item.PacketsReceiveBuf = s.Instantaneous.PktRecvBuf
+		item.BytesReceiveBuf = s.Instantaneous.ByteRecvBuf
+		item.MsReceiveBuf = s.Instantaneous.MsRecvBuf
+		item.MsReceiveTsbPdDelay = s.Instantaneous.MsRecvTsbPdDelay
+		item.PacketsReorderTolerance = s.Instantaneous.PktReorderTolerance
+		item.PacketsReceivedAvgBelatedTime = s.Instantaneous.PktRecvAvgBelatedTime
+		item.PacketsSendLossRate = s.Instantaneous.PktSendLossRate
+		item.PacketsReceivedLossRate = s.Instantaneous.PktRecvLossRate
+	}
+
+	return item
 }

@@ -1,7 +1,10 @@
 linters:
   enable:
+  - asciicheck
+  - bidichk
   - bodyclose
   - dupl
+  - errorlint
   - exportloopref
   - gochecknoinits
   - gocritic
@@ -12,7 +15,9 @@ linters:
   - nilerr
   - prealloc
   - revive
+  - usestdlibvars
   - unconvert
+  - tparallel
   - wastedassign
   - whitespace
 
@@ -63,4 +68,3 @@ linters-settings:
     disable:
     - fieldalignment
     - reflectvaluecompare
-    - shadow

@@ -16,7 +16,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/defs"
 	"github.com/bluenviron/mediamtx/internal/protocols/webrtc"
-	"github.com/bluenviron/mediamtx/internal/staticsources/tester"
+	"github.com/bluenviron/mediamtx/internal/test"
 )
 
 func whipOffer(body []byte) *pwebrtc.SessionDescription {
@@ -36,6 +36,7 @@ func TestSource(t *testing.T) {
 	pc := &webrtc.PeerConnection{
 		API:     api,
 		Publish: true,
+		Log:     test.NilLogger,
 	}
 	err = pc.Start()
 	require.NoError(t, err)
@@ -68,12 +69,12 @@ func TestSource(t *testing.T) {
 				require.Equal(t, "/my/resource", r.URL.Path)
 				require.Equal(t, "application/sdp", r.Header.Get("Content-Type"))
 
-				body, err := io.ReadAll(r.Body)
-				require.NoError(t, err)
+				body, err2 := io.ReadAll(r.Body)
+				require.NoError(t, err2)
 				offer := whipOffer(body)
 
-				answer, err := pc.CreateFullAnswer(context.Background(), offer)
-				require.NoError(t, err)
+				answer, err2 := pc.CreateFullAnswer(context.Background(), offer)
+				require.NoError(t, err2)
 
 				w.Header().Set("Content-Type", "application/sdp")
 				w.Header().Set("Accept-Patch", "application/trickle-ice-sdpfrag")
@@ -83,10 +84,10 @@ func TestSource(t *testing.T) {
 				w.Write([]byte(answer.SDP))
 
 				go func() {
-					err = pc.WaitUntilConnected(context.Background())
-					require.NoError(t, err)
+					err3 := pc.WaitUntilConnected(context.Background())
+					require.NoError(t, err3)
 
-					err = tracks[0].WriteRTP(&rtp.Packet{
+					err3 = tracks[0].WriteRTP(&rtp.Packet{
 						Header: rtp.Header{
 							Version:        2,
 							Marker:         true,
@@ -97,7 +98,7 @@ func TestSource(t *testing.T) {
 						},
 						Payload: []byte{5, 2},
 					})
-					require.NoError(t, err)
+					require.NoError(t, err3)
 				}()
 
 			default:
@@ -124,16 +125,15 @@ func TestSource(t *testing.T) {
 	go httpServ.Serve(ln)
 	defer httpServ.Shutdown(context.Background())
 
-	te := tester.New(
+	te := test.NewSourceTester(
 		func(p defs.StaticSourceParent) defs.StaticSource {
 			return &Source{
-				ReadTimeout: conf.StringDuration(10 * time.Second),
-				Parent:      p,
+				ResolvedSource: "whep://localhost:9003/my/resource",
+				ReadTimeout:    conf.StringDuration(10 * time.Second),
+				Parent:         p,
 			}
 		},
-		&conf.Path{
-			Source: "whep://localhost:9003/my/resource",
-		},
+		&conf.Path{},
 	)
 	defer te.Close()
 

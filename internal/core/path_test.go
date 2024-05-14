@@ -26,6 +26,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/defs"
 	"github.com/bluenviron/mediamtx/internal/protocols/rtmp"
 	"github.com/bluenviron/mediamtx/internal/protocols/webrtc"
+	"github.com/bluenviron/mediamtx/internal/test"
 )
 
 var runOnDemandSampleScript = `
@@ -81,6 +82,25 @@ func main() {
 	}
 }
 `
+
+type testServer struct {
+	onDescribe func(*gortsplib.ServerHandlerOnDescribeCtx) (*base.Response, *gortsplib.ServerStream, error)
+	onSetup    func(*gortsplib.ServerHandlerOnSetupCtx) (*base.Response, *gortsplib.ServerStream, error)
+	onPlay     func(*gortsplib.ServerHandlerOnPlayCtx) (*base.Response, error)
+}
+
+func (sh *testServer) OnDescribe(ctx *gortsplib.ServerHandlerOnDescribeCtx,
+) (*base.Response, *gortsplib.ServerStream, error) {
+	return sh.onDescribe(ctx)
+}
+
+func (sh *testServer) OnSetup(ctx *gortsplib.ServerHandlerOnSetupCtx) (*base.Response, *gortsplib.ServerStream, error) {
+	return sh.onSetup(ctx)
+}
+
+func (sh *testServer) OnPlay(ctx *gortsplib.ServerHandlerOnPlayCtx) (*base.Response, error) {
+	return sh.onPlay(ctx)
+}
 
 var _ defs.Path = &path{}
 
@@ -222,7 +242,7 @@ func TestPathRunOnConnect(t *testing.T) {
 
 					err := c.StartRecording(
 						"rtsp://localhost:8554/test",
-						&description.Session{Medias: []*description.Media{testMediaH264}})
+						&description.Session{Medias: []*description.Media{test.UniqueMediaH264()}})
 					require.NoError(t, err)
 					defer c.Close()
 
@@ -282,9 +302,10 @@ func TestPathRunOnReady(t *testing.T) {
 		defer p.Close()
 
 		c := gortsplib.Client{}
+
 		err := c.StartRecording(
 			"rtsp://localhost:8554/test?query=value",
-			&description.Session{Medias: []*description.Media{testMediaH264}})
+			&description.Session{Medias: []*description.Media{test.UniqueMediaH264()}})
 		require.NoError(t, err)
 		defer c.Close()
 
@@ -319,10 +340,13 @@ func TestPathRunOnRead(t *testing.T) {
 				require.Equal(t, true, ok)
 				defer p.Close()
 
+				media0 := test.UniqueMediaH264()
+
 				source := gortsplib.Client{}
+
 				err := source.StartRecording(
 					"rtsp://localhost:8554/test",
-					&description.Session{Medias: []*description.Media{testMediaH264}})
+					&description.Session{Medias: []*description.Media{media0}})
 				require.NoError(t, err)
 				defer source.Close()
 
@@ -373,7 +397,9 @@ func TestPathRunOnRead(t *testing.T) {
 					defer reader.Close()
 
 				case "webrtc":
-					hc := &http.Client{Transport: &http.Transport{}}
+					tr := &http.Transport{}
+					defer tr.CloseIdleConnections()
+					hc := &http.Client{Transport: tr}
 
 					u, err := url.Parse("http://localhost:8889/test/whep?query=value")
 					require.NoError(t, err)
@@ -381,7 +407,39 @@ func TestPathRunOnRead(t *testing.T) {
 					c := &webrtc.WHIPClient{
 						HTTPClient: hc,
 						URL:        u,
+						Log:        test.NilLogger,
 					}
+
+					writerDone := make(chan struct{})
+					defer func() { <-writerDone }()
+
+					writerTerminate := make(chan struct{})
+					defer close(writerTerminate)
+
+					go func() {
+						defer close(writerDone)
+						i := uint16(0)
+						for {
+							select {
+							case <-time.After(100 * time.Millisecond):
+							case <-writerTerminate:
+								return
+							}
+							err2 := source.WritePacketRTP(media0, &rtp.Packet{
+								Header: rtp.Header{
+									Version:        2,
+									Marker:         true,
+									PayloadType:    96,
+									SequenceNumber: 123 + i,
+									Timestamp:      45343,
+									SSRC:           563423,
+								},
+								Payload: []byte{5},
+							})
+							require.NoError(t, err2)
+							i++
+						}
+					}()
 
 					_, err = c.Read(context.Background())
 					require.NoError(t, err)
@@ -410,11 +468,12 @@ func TestPathMaxReaders(t *testing.T) {
 	defer p.Close()
 
 	source := gortsplib.Client{}
+
 	err := source.StartRecording(
 		"rtsp://localhost:8554/mystream",
 		&description.Session{Medias: []*description.Media{
-			testMediaH264,
-			testMediaAAC,
+			test.UniqueMediaH264(),
+			test.UniqueMediaMPEG4Audio(),
 		}})
 	require.NoError(t, err)
 	defer source.Close()
@@ -455,15 +514,18 @@ func TestPathRecord(t *testing.T) {
 	require.Equal(t, true, ok)
 	defer p.Close()
 
+	media0 := test.UniqueMediaH264()
+
 	source := gortsplib.Client{}
+
 	err = source.StartRecording(
 		"rtsp://localhost:8554/mystream",
-		&description.Session{Medias: []*description.Media{testMediaH264}})
+		&description.Session{Medias: []*description.Media{media0}})
 	require.NoError(t, err)
 	defer source.Close()
 
 	for i := 0; i < 4; i++ {
-		err := source.WritePacketRTP(testMediaH264, &rtp.Packet{
+		err = source.WritePacketRTP(media0, &rtp.Packet{
 			Header: rtp.Header{
 				Version:        2,
 				Marker:         true,
@@ -483,7 +545,9 @@ func TestPathRecord(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, len(files))
 
-	hc := &http.Client{Transport: &http.Transport{}}
+	tr := &http.Transport{}
+	defer tr.CloseIdleConnections()
+	hc := &http.Client{Transport: tr}
 
 	httpRequest(t, hc, http.MethodPatch, "http://localhost:9997/v3/config/paths/patch/all_others", map[string]interface{}{
 		"record": false,
@@ -498,7 +562,7 @@ func TestPathRecord(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	for i := 4; i < 8; i++ {
-		err := source.WritePacketRTP(testMediaH264, &rtp.Packet{
+		err = source.WritePacketRTP(media0, &rtp.Packet{
 			Header: rtp.Header{
 				Version:        2,
 				Marker:         true,
@@ -555,7 +619,7 @@ func TestPathFallback(t *testing.T) {
 
 			source := gortsplib.Client{}
 			err := source.StartRecording("rtsp://localhost:8554/path2",
-				&description.Session{Medias: []*description.Media{testMediaH264}})
+				&description.Session{Medias: []*description.Media{test.UniqueMediaH264()}})
 			require.NoError(t, err)
 			defer source.Close()
 
@@ -570,6 +634,164 @@ func TestPathFallback(t *testing.T) {
 			desc, _, err := dest.Describe(u)
 			require.NoError(t, err)
 			require.Equal(t, 1, len(desc.Medias))
+		})
+	}
+}
+
+func TestPathSourceRegexp(t *testing.T) {
+	var stream *gortsplib.ServerStream
+
+	s := gortsplib.Server{
+		Handler: &testServer{
+			onDescribe: func(ctx *gortsplib.ServerHandlerOnDescribeCtx,
+			) (*base.Response, *gortsplib.ServerStream, error) {
+				require.Equal(t, "/a", ctx.Path)
+				return &base.Response{
+					StatusCode: base.StatusOK,
+				}, stream, nil
+			},
+			onSetup: func(_ *gortsplib.ServerHandlerOnSetupCtx) (*base.Response, *gortsplib.ServerStream, error) {
+				return &base.Response{
+					StatusCode: base.StatusOK,
+				}, stream, nil
+			},
+			onPlay: func(_ *gortsplib.ServerHandlerOnPlayCtx) (*base.Response, error) {
+				return &base.Response{
+					StatusCode: base.StatusOK,
+				}, nil
+			},
+		},
+		RTSPAddress: "127.0.0.1:8555",
+	}
+
+	err := s.Start()
+	require.NoError(t, err)
+	defer s.Close()
+
+	stream = gortsplib.NewServerStream(&s, &description.Session{Medias: []*description.Media{test.MediaH264}})
+	defer stream.Close()
+
+	p, ok := newInstance(
+		"paths:\n" +
+			"  '~^test_(.+)$':\n" +
+			"    source: rtsp://127.0.0.1:8555/$G1\n" +
+			"    sourceOnDemand: yes\n" +
+			"  'all':\n")
+	require.Equal(t, true, ok)
+	defer p.Close()
+
+	reader := gortsplib.Client{}
+
+	u, err := base.ParseURL("rtsp://127.0.0.1:8554/test_a")
+	require.NoError(t, err)
+
+	err = reader.Start(u.Scheme, u.Host)
+	require.NoError(t, err)
+	defer reader.Close()
+
+	_, _, err = reader.Describe(u)
+	require.NoError(t, err)
+}
+
+func TestPathOverridePublisher(t *testing.T) {
+	for _, ca := range []string{
+		"enabled",
+		"disabled",
+	} {
+		t.Run(ca, func(t *testing.T) {
+			conf := "rtmp: no\n" +
+				"paths:\n" +
+				"  all_others:\n"
+
+			if ca == "disabled" {
+				conf += "    overridePublisher: no\n"
+			}
+
+			p, ok := newInstance(conf)
+			require.Equal(t, true, ok)
+			defer p.Close()
+
+			medi := test.UniqueMediaH264()
+
+			s1 := gortsplib.Client{}
+
+			err := s1.StartRecording("rtsp://localhost:8554/teststream",
+				&description.Session{Medias: []*description.Media{medi}})
+			require.NoError(t, err)
+			defer s1.Close()
+
+			s2 := gortsplib.Client{}
+
+			err = s2.StartRecording("rtsp://localhost:8554/teststream",
+				&description.Session{Medias: []*description.Media{medi}})
+			if ca == "enabled" {
+				require.NoError(t, err)
+				defer s2.Close()
+			} else {
+				require.Error(t, err)
+			}
+
+			frameRecv := make(chan struct{})
+
+			c := gortsplib.Client{}
+
+			u, err := base.ParseURL("rtsp://localhost:8554/teststream")
+			require.NoError(t, err)
+
+			err = c.Start(u.Scheme, u.Host)
+			require.NoError(t, err)
+			defer c.Close()
+
+			desc, _, err := c.Describe(u)
+			require.NoError(t, err)
+
+			err = c.SetupAll(desc.BaseURL, desc.Medias)
+			require.NoError(t, err)
+
+			c.OnPacketRTP(desc.Medias[0], desc.Medias[0].Formats[0], func(pkt *rtp.Packet) {
+				if ca == "enabled" {
+					require.Equal(t, []byte{5, 15, 16, 17, 18}, pkt.Payload)
+				} else {
+					require.Equal(t, []byte{5, 11, 12, 13, 14}, pkt.Payload)
+				}
+				close(frameRecv)
+			})
+
+			_, err = c.Play(nil)
+			require.NoError(t, err)
+
+			if ca == "enabled" {
+				err = s1.Wait()
+				require.EqualError(t, err, "EOF")
+
+				err = s2.WritePacketRTP(medi, &rtp.Packet{
+					Header: rtp.Header{
+						Version:        0x02,
+						PayloadType:    96,
+						SequenceNumber: 57899,
+						Timestamp:      345234345,
+						SSRC:           978651231,
+						Marker:         true,
+					},
+					Payload: []byte{5, 15, 16, 17, 18},
+				})
+				require.NoError(t, err)
+			} else {
+				err = s1.WritePacketRTP(medi, &rtp.Packet{
+					Header: rtp.Header{
+						Version:        0x02,
+						PayloadType:    96,
+						SequenceNumber: 57899,
+						Timestamp:      345234345,
+						SSRC:           978651231,
+						Marker:         true,
+					},
+					Payload: []byte{5, 11, 12, 13, 14},
+				})
+				require.NoError(t, err)
+			}
+
+			<-frameRecv
 		})
 	}
 }

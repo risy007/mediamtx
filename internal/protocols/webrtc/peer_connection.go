@@ -19,11 +19,6 @@ const (
 	webrtcStreamID           = "mediamtx"
 )
 
-type nilLogger struct{}
-
-func (nilLogger) Log(_ logger.Level, _ string, _ ...interface{}) {
-}
-
 type trackRecvPair struct {
 	track    *webrtc.TrackRemote
 	receiver *webrtc.RTPReceiver
@@ -41,17 +36,16 @@ type PeerConnection struct {
 	newLocalCandidate chan *webrtc.ICECandidateInit
 	connected         chan struct{}
 	disconnected      chan struct{}
-	closed            chan struct{}
+	done              chan struct{}
 	gatheringDone     chan struct{}
 	incomingTrack     chan trackRecvPair
+
+	ctx       context.Context
+	ctxCancel context.CancelFunc
 }
 
 // Start starts the peer connection.
 func (co *PeerConnection) Start() error {
-	if co.Log == nil {
-		co.Log = &nilLogger{}
-	}
-
 	configuration := webrtc.Configuration{
 		ICEServers: co.ICEServers,
 	}
@@ -65,9 +59,11 @@ func (co *PeerConnection) Start() error {
 	co.newLocalCandidate = make(chan *webrtc.ICECandidateInit)
 	co.connected = make(chan struct{})
 	co.disconnected = make(chan struct{})
-	co.closed = make(chan struct{})
+	co.done = make(chan struct{})
 	co.gatheringDone = make(chan struct{})
 	co.incomingTrack = make(chan trackRecvPair)
+
+	co.ctx, co.ctxCancel = context.WithCancel(context.Background())
 
 	if !co.Publish {
 		_, err = co.wr.AddTransceiverFromKind(webrtc.RTPCodecTypeVideo, webrtc.RtpTransceiverInit{
@@ -89,7 +85,7 @@ func (co *PeerConnection) Start() error {
 		co.wr.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 			select {
 			case co.incomingTrack <- trackRecvPair{track, receiver}:
-			case <-co.closed:
+			case <-co.ctx.Done():
 			}
 		})
 	}
@@ -99,7 +95,7 @@ func (co *PeerConnection) Start() error {
 		defer co.stateChangeMutex.Unlock()
 
 		select {
-		case <-co.closed:
+		case <-co.done:
 			return
 		default:
 		}
@@ -117,7 +113,7 @@ func (co *PeerConnection) Start() error {
 			close(co.disconnected)
 
 		case webrtc.PeerConnectionStateClosed:
-			close(co.closed)
+			close(co.done)
 		}
 	})
 
@@ -127,7 +123,7 @@ func (co *PeerConnection) Start() error {
 			select {
 			case co.newLocalCandidate <- &v:
 			case <-co.connected:
-			case <-co.closed:
+			case <-co.ctx.Done():
 			}
 		} else {
 			close(co.gatheringDone)
@@ -139,8 +135,9 @@ func (co *PeerConnection) Start() error {
 
 // Close closes the connection.
 func (co *PeerConnection) Close() {
+	co.ctxCancel()
 	co.wr.Close() //nolint:errcheck
-	<-co.closed
+	<-co.done
 }
 
 // CreatePartialOffer creates a partial offer.
@@ -236,7 +233,7 @@ outer:
 // GatherIncomingTracks gathers incoming tracks.
 func (co *PeerConnection) GatherIncomingTracks(
 	ctx context.Context,
-	count int,
+	maxCount int,
 ) ([]*IncomingTrack, error) {
 	var tracks []*IncomingTrack
 
@@ -246,7 +243,7 @@ func (co *PeerConnection) GatherIncomingTracks(
 	for {
 		select {
 		case <-t.C:
-			if count == 0 {
+			if maxCount == 0 && len(tracks) != 0 {
 				return tracks, nil
 			}
 			return nil, fmt.Errorf("deadline exceeded while waiting tracks")
@@ -258,7 +255,7 @@ func (co *PeerConnection) GatherIncomingTracks(
 			}
 			tracks = append(tracks, track)
 
-			if len(tracks) == count || len(tracks) >= 2 {
+			if len(tracks) == maxCount || len(tracks) >= 2 {
 				return tracks, nil
 			}
 

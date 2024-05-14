@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/bluenviron/mediamtx/internal/conf"
 )
 
 func leadingZeros(v int, size int) string {
@@ -21,9 +23,53 @@ func leadingZeros(v int, size int) string {
 	return out2 + out
 }
 
-type path time.Time
+// PathAddExtension adds the file extension to path.
+func PathAddExtension(path string, format conf.RecordFormat) string {
+	switch format {
+	case conf.RecordFormatMPEGTS:
+		return path + ".ts"
 
-func (p *path) decode(format string, v string) bool {
+	default:
+		return path + ".mp4"
+	}
+}
+
+// CommonPath returns the common path between all segments with given recording path.
+func CommonPath(v string) string {
+	common := ""
+	remaining := v
+
+	for {
+		i := strings.IndexAny(remaining, "\\/")
+		if i < 0 {
+			break
+		}
+
+		var part string
+		part, remaining = remaining[:i+1], remaining[i+1:]
+
+		if strings.Contains(part, "%") {
+			break
+		}
+
+		common += part
+	}
+
+	if len(common) > 0 {
+		common = common[:len(common)-1]
+	}
+
+	return common
+}
+
+// Path is a path of a recording segment.
+type Path struct {
+	Start time.Time
+	Path  string
+}
+
+// Decode decodes a Path.
+func (p *Path) Decode(format string, v string) bool {
 	re := format
 
 	for _, ch := range []uint8{
@@ -107,6 +153,9 @@ func (p *path) decode(format string, v string) bool {
 
 	for k, v := range values {
 		switch k {
+		case "%path":
+			p.Path = v
+
 		case "%Y":
 			tmp, _ := strconv.ParseInt(v, 10, 64)
 			year = int(tmp)
@@ -141,22 +190,24 @@ func (p *path) decode(format string, v string) bool {
 	}
 
 	if unixSec > 0 {
-		*p = path(time.Unix(unixSec, 0))
+		p.Start = time.Unix(unixSec, 0)
 	} else {
-		*p = path(time.Date(year, month, day, hour, minute, second, micros*1000, time.Local))
+		p.Start = time.Date(year, month, day, hour, minute, second, micros*1000, time.Local)
 	}
 
 	return true
 }
 
-func (p path) encode(format string) string {
-	format = strings.ReplaceAll(format, "%Y", strconv.FormatInt(int64(time.Time(p).Year()), 10))
-	format = strings.ReplaceAll(format, "%m", leadingZeros(int(time.Time(p).Month()), 2))
-	format = strings.ReplaceAll(format, "%d", leadingZeros(time.Time(p).Day(), 2))
-	format = strings.ReplaceAll(format, "%H", leadingZeros(time.Time(p).Hour(), 2))
-	format = strings.ReplaceAll(format, "%M", leadingZeros(time.Time(p).Minute(), 2))
-	format = strings.ReplaceAll(format, "%S", leadingZeros(time.Time(p).Second(), 2))
-	format = strings.ReplaceAll(format, "%f", leadingZeros(time.Time(p).Nanosecond()/1000, 6))
-	format = strings.ReplaceAll(format, "%s", strconv.FormatInt(time.Time(p).Unix(), 10))
+// Encode encodes a path.
+func (p Path) Encode(format string) string {
+	format = strings.ReplaceAll(format, "%path", p.Path)
+	format = strings.ReplaceAll(format, "%Y", strconv.FormatInt(int64(p.Start.Year()), 10))
+	format = strings.ReplaceAll(format, "%m", leadingZeros(int(p.Start.Month()), 2))
+	format = strings.ReplaceAll(format, "%d", leadingZeros(p.Start.Day(), 2))
+	format = strings.ReplaceAll(format, "%H", leadingZeros(p.Start.Hour(), 2))
+	format = strings.ReplaceAll(format, "%M", leadingZeros(p.Start.Minute(), 2))
+	format = strings.ReplaceAll(format, "%S", leadingZeros(p.Start.Second(), 2))
+	format = strings.ReplaceAll(format, "%f", leadingZeros(p.Start.Nanosecond()/1000, 6))
+	format = strings.ReplaceAll(format, "%s", strconv.FormatInt(p.Start.Unix(), 10))
 	return format
 }

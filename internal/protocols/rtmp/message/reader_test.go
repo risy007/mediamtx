@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/notedit/rtmp/format/flv/flvio"
 	"github.com/stretchr/testify/require"
 
+	"github.com/bluenviron/mediamtx/internal/protocols/rtmp/amf0"
 	"github.com/bluenviron/mediamtx/internal/protocols/rtmp/bytecounter"
 )
 
@@ -33,9 +33,9 @@ var readWriterCases = []struct {
 			DTS:             6013806 * time.Millisecond,
 			MessageStreamID: 4534543,
 			Codec:           CodecMPEG1Audio,
-			Rate:            flvio.SOUND_44Khz,
-			Depth:           flvio.SOUND_16BIT,
-			Channels:        flvio.SOUND_STEREO,
+			Rate:            Rate44100,
+			Depth:           Depth16,
+			IsStereo:        true,
 			Payload:         []byte{0x01, 0x02, 0x03, 0x04},
 		},
 		[]byte{
@@ -50,9 +50,9 @@ var readWriterCases = []struct {
 			DTS:             6013806 * time.Millisecond,
 			MessageStreamID: 4534543,
 			Codec:           CodecMPEG4Audio,
-			Rate:            flvio.SOUND_44Khz,
-			Depth:           flvio.SOUND_16BIT,
-			Channels:        flvio.SOUND_STEREO,
+			Rate:            Rate44100,
+			Depth:           Depth16,
+			IsStereo:        true,
 			AACType:         AudioAACTypeAU,
 			Payload:         []byte{0x5A, 0xC0, 0x77, 0x40},
 		},
@@ -70,9 +70,9 @@ var readWriterCases = []struct {
 			Name:            "i8yythrergre",
 			CommandID:       56456,
 			Arguments: []interface{}{
-				flvio.AMFMap{
-					{K: "k1", V: "v1"},
-					{K: "k2", V: "v2"},
+				amf0.Object{
+					{Key: "k1", Value: "v1"},
+					{Key: "k2", Value: "v2"},
 				},
 				nil,
 			},
@@ -297,7 +297,7 @@ func FuzzReader(f *testing.F) {
 		0x01, 0x00, 0x00, 0x00, 0x88, 0x68, 0x76, 0x63,
 		0x31, 0x01, 0x02, 0x03,
 	})
-	f.Fuzz(func(t *testing.T, b []byte) {
+	f.Fuzz(func(_ *testing.T, b []byte) {
 		bc := bytecounter.NewReader(bytes.NewReader(b))
 		r := NewReader(bc, bc, nil)
 		r.Read() //nolint:errcheck

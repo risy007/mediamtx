@@ -14,7 +14,7 @@
 
 <br>
 
-_MediaMTX_ (formerly _rtsp-simple-server_) is a ready-to-use and zero-dependency real-time media server and media proxy that allows to publish, read, proxy and record video and audio streams. It has been conceived as a "media router" that routes media streams from one end to the other.
+_MediaMTX_ (formerly _rtsp-simple-server_) is a ready-to-use and zero-dependency real-time media server and media proxy that allows to publish, read, proxy, record and playback video and audio streams. It has been conceived as a "media router" that routes media streams from one end to the other.
 
 Live streams can be published to the server with:
 
@@ -22,11 +22,11 @@ Live streams can be published to the server with:
 |--------|--------|------------|------------|
 |[SRT clients](#srt-clients)||H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3|
 |[SRT cameras and servers](#srt-cameras-and-servers)||H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3|
-|[WebRTC clients](#webrtc-clients)|Browser-based, WHIP|AV1, VP9, VP8, H264|Opus, G722, G711|
-|[WebRTC servers](#webrtc-servers)|WHEP|AV1, VP9, VP8, H264|Opus, G722, G711|
-|[RTSP clients](#rtsp-clients)|UDP, TCP, RTSPS|AV1, VP9, VP8, H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video, M-JPEG and any RTP-compatible codec|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3, G726, G722, G711, LPCM and any RTP-compatible codec|
-|[RTSP cameras and servers](#rtsp-cameras-and-servers)|UDP, UDP-Multicast, TCP, RTSPS|AV1, VP9, VP8, H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video, M-JPEG and any RTP-compatible codec|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3, G726, G722, G711, LPCM and any RTP-compatible codec|
-|[RTMP clients](#rtmp-clients)|RTMP, RTMPS, Enhanced RTMP|AV1, VP9, H265, H264|MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3)|
+|[WebRTC clients](#webrtc-clients)|Browser-based, WHIP|AV1, VP9, VP8, H264|Opus, G722, G711 (PCMA, PCMU)|
+|[WebRTC servers](#webrtc-servers)|WHEP|AV1, VP9, VP8, H264|Opus, G722, G711 (PCMA, PCMU)|
+|[RTSP clients](#rtsp-clients)|UDP, TCP, RTSPS|AV1, VP9, VP8, H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video, M-JPEG and any RTP-compatible codec|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3, G726, G722, G711 (PCMA, PCMU), LPCM and any RTP-compatible codec|
+|[RTSP cameras and servers](#rtsp-cameras-and-servers)|UDP, UDP-Multicast, TCP, RTSPS|AV1, VP9, VP8, H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video, M-JPEG and any RTP-compatible codec|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3, G726, G722, G711 (PCMA, PCMU), LPCM and any RTP-compatible codec|
+|[RTMP clients](#rtmp-clients)|RTMP, RTMPS, Enhanced RTMP|AV1, VP9, H265, H264|MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), G711 (PCMA, PCMU), LPCM|
 |[RTMP cameras and servers](#rtmp-cameras-and-servers)|RTMP, RTMPS, Enhanced RTMP|H264|MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3)|
 |[HLS cameras and servers](#hls-cameras-and-servers)|Low-Latency HLS, MP4-based HLS, legacy HLS|AV1, VP9, H265, H264|Opus, MPEG-4 Audio (AAC)|
 |[UDP/MPEG-TS](#udpmpeg-ts)|Unicast, broadcast, multicast|H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3|
@@ -37,16 +37,16 @@ And can be read from the server with:
 |protocol|variants|video codecs|audio codecs|
 |--------|--------|------------|------------|
 |[SRT](#srt)||H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3|
-|[WebRTC](#webrtc)|Browser-based, WHEP|AV1, VP9, VP8, H264|Opus, G722, G711|
-|[RTSP](#rtsp)|UDP, UDP-Multicast, TCP, RTSPS|AV1, VP9, VP8, H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video, M-JPEG and any RTP-compatible codec|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3, G726, G722, G711, LPCM and any RTP-compatible codec|
+|[WebRTC](#webrtc)|Browser-based, WHEP|AV1, VP9, VP8, H264|Opus, G722, G711 (PCMA, PCMU)|
+|[RTSP](#rtsp)|UDP, UDP-Multicast, TCP, RTSPS|AV1, VP9, VP8, H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video, M-JPEG and any RTP-compatible codec|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3, G726, G722, G711 (PCMA, PCMU), LPCM and any RTP-compatible codec|
 |[RTMP](#rtmp)|RTMP, RTMPS, Enhanced RTMP|H264|MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3)|
 |[HLS](#hls)|Low-Latency HLS, MP4-based HLS, legacy HLS|AV1, VP9, H265, H264|Opus, MPEG-4 Audio (AAC)|
 
-And can be recorded with:
+And can be recorded and played back with:
 
 |format|video codecs|audio codecs|
 |------|------------|------------|
-|[fMP4](#record-streams-to-disk)|AV1, VP9, H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video, M-JPEG|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3, LPCM|
+|[fMP4](#record-streams-to-disk)|AV1, VP9, H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video, M-JPEG|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3, G711 (PCMA, PCMU), LPCM|
 |[MPEG-TS](#record-streams-to-disk)|H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3|
 
 **Features**
@@ -56,9 +56,10 @@ And can be recorded with:
 * Streams are automatically converted from a protocol to another
 * Serve multiple streams at once in separate paths
 * Record streams to disk
-* Authenticate users; use internal or external authentication
+* Playback recorded streams
+* Authenticate users
 * Redirect readers to other RTSP servers (load balancing)
-* Query and control the server through the API
+* Control the server through the Control API
 * Reload the configuration without disconnecting existing clients (hot reloading)
 * Read Prometheus-compatible metrics
 * Run hooks (external commands) when clients connect, disconnect, read or publish streams
@@ -112,31 +113,41 @@ _rtsp-simple-server_ has been rebranded as _MediaMTX_. The reason is pretty obvi
 * [Other features](#other-features)
   * [Configuration](#configuration)
   * [Authentication](#authentication)
+    * [Internal](#internal)
+    * [HTTP-based](#http-based)
+    * [JWT-based](#jwt-based)
   * [Encrypt the configuration](#encrypt-the-configuration)
   * [Remuxing, re-encoding, compression](#remuxing-re-encoding-compression)
   * [Record streams to disk](#record-streams-to-disk)
-  * [Forward streams to another server](#forward-streams-to-another-server)
+  * [Playback recorded streams](#playback-recorded-streams)
+  * [Forward streams to other servers](#forward-streams-to-other-servers)
+  * [Proxy requests to other servers](#proxy-requests-to-other-servers)
   * [On-demand publishing](#on-demand-publishing)
   * [Start on boot](#start-on-boot)
     * [Linux](#linux)
     * [OpenWrt](#openwrt)
     * [Windows](#windows)
   * [Hooks](#hooks)
-  * [API](#api)
+  * [Control API](#control-api)
   * [Metrics](#metrics)
   * [pprof](#pprof)
+  * [SRT-specific features](#srt-specific-features)
+    * [Standard stream ID syntax](#standard-stream-id-syntax)
+  * [WebRTC-specific features](#webrtc-specific-features)
+    * [Connectivity issues](#connectivity-issues)
   * [RTSP-specific features](#rtsp-specific-features)
     * [Transport protocols](#transport-protocols)
     * [Encryption](#encryption)
     * [Corrupted frames](#corrupted-frames)
   * [RTMP-specific features](#rtmp-specific-features)
     * [Encryption](#encryption-1)
-  * [WebRTC-specific features](#webrtc-specific-features)
-    * [Connectivity issues](#connectivity-issues)
 * [Compile from source](#compile-from-source)
   * [Standard](#standard)
   * [Raspberry Pi](#raspberry-pi)
   * [OpenWrt](#openwrt-1)
+  * [Cross compile](#cross-compile)
+  * [Compile for all supported platforms](#compile-for-all-supported-platforms)
+* [License](#license)
 * [Specifications](#specifications)
 * [Related projects](#related-projects)
 
@@ -284,6 +295,16 @@ d.video_0 ! rtspclientsink protocols=tcp name=s location=rtsp://localhost:8554/m
 
 The resulting stream will be available in path `/mystream`.
 
+GStreamer can also publish a stream by using the [WebRTC / WHIP protocol](#webrtc). Make sure that GStreamer version is at least 1.22, and that if the codec is H264, the profile is baseline. Use the `whipclientsink` element:
+
+```
+gst-launch-1.0 videotestsrc \
+! video/x-raw,width=1920,height=1080,format=I420 \
+! x264enc speed-preset=ultrafast bitrate=2000 \
+! video/x-h264,profile=baseline \
+! whipclientsink signaller::whip-endpoint=http://localhost:8889/mystream/whip
+```
+
 #### OBS Studio
 
 OBS Studio can publish to the server in multiple ways (SRT client, RTMP client, WebRTC client). The recommended one consists in publishing as a [RTMP client](#rtmp-clients). In `Settings -> Stream` (or in the Auto-configuration Wizard), use the following parameters:
@@ -305,7 +326,7 @@ If you want to generate a stream that can be read with WebRTC, open `Settings ->
 * FFmpeg output type: `Output to URL`
 * File path or URL: `rtsp://localhost:8554/mystream`
 * Container format: `rtsp`
-* Check `show all codecs (even if potentically incompatible`
+* Check `show all codecs (even if potentically incompatible)`
 * Video encoder: `h264_nvenc (libx264)`
 * Video encoder settings (if any): `bf=0`
 * Audio track: `1`
@@ -413,7 +434,7 @@ This web page can be embedded into another web page by using an iframe:
 <iframe src="http://mediamtx-ip:8889/mystream/publish" scrolling="no"></iframe>
 ```
 
-For more advanced setups, you can create and serve a custom web page by starting from the [source code of the publish page](internal/core/servers/webrtc/publish_index.html).
+For more advanced setups, you can create and serve a custom web page by starting from the [source code of the WebRTC publish page](internal/servers/webrtc/publish_index.html).
 
 ### By device
 
@@ -550,11 +571,13 @@ srt://localhost:8890?streamid=publish:mystream&pkt_size=1316
 
 Replace `mystream` with any name you want. The resulting stream will be available in path `/mystream`.
 
-If credentials are enabled, append username and password to `streamid`;
+If credentials are enabled, append username and password to `streamid`:
 
 ```
 srt://localhost:8890?streamid=publish:mystream:user:pass&pkt_size=1316
 ```
+
+If you need to use the standard stream ID syntax instead of the custom one in use by this server, see [Standard stream ID syntax](#standard-stream-id-syntax).
 
 If you want to publish a stream by using a client in listening mode (i.e. with `mode=listener` appended to the URL), read the next section.
 
@@ -616,7 +639,7 @@ Known clients that can publish with RTSP are [FFmpeg](#ffmpeg), [GStreamer](#gst
 
 #### RTSP cameras and servers
 
-Most IP cameras expose their video stream by using a RTSP server that is embedded into the camera itself. In particular, cameras that are compliant to ONVIF profile S or T meet this requirement. You can use _MediaMTX_ to connect to one or multiple existing RTSP servers and read their video streams:
+Most IP cameras expose their video stream by using a RTSP server that is embedded into the camera itself. In particular, cameras that are compliant with ONVIF profile S or T meet this requirement. You can use _MediaMTX_ to connect to one or multiple existing RTSP servers and read their video streams:
 
 ```yml
 paths:
@@ -801,7 +824,7 @@ This web page can be embedded into another web page by using an iframe:
 <iframe src="http://mediamtx-ip:8889/mystream" scrolling="no"></iframe>
 ```
 
-For more advanced setups, you can create and serve a custom web page by starting from the [source code of the read page](internal/core/servers/webrtc/read_index.html).
+For more advanced setups, you can create and serve a custom web page by starting from the [source code of the WebRTC read page](internal/servers/webrtc/read_index.html).
 
 Web browsers can also read a stream with the [HLS protocol](#hls). Latency is higher but there are less problems related to connectivity between server and clients, furthermore the server load can be balanced by using a common HTTP CDN (like CloudFront or Cloudflare), and this allows to handle readers in the order of millions. Visit the web page:
 
@@ -815,6 +838,8 @@ This web page can be embedded into another web page by using an iframe:
 <iframe src="http://mediamtx-ip:8888/mystream" scrolling="no"></iframe>
 ```
 
+For more advanced setups, you can create and serve a custom web page by starting from the [source code of the HLS read page](internal/servers/hls/index.html).
+
 ### By protocol
 
 #### SRT
@@ -827,11 +852,13 @@ srt://localhost:8890?streamid=read:mystream
 
 Replace `mystream` with the path name.
 
-If credentials are enabled, append username and password to `streamid`;
+If credentials are enabled, append username and password to `streamid`:
 
 ```
 srt://localhost:8890?streamid=read:mystream:user:pass
 ```
+
+If you need to use the standard stream ID syntax instead of the custom one in use by this server, see [Standard stream ID syntax](#standard-stream-id-syntax).
 
 Known clients that can read with SRT are [FFmpeg](#ffmpeg-1), [GStreamer](#gstreamer-1) and [VLC](#vlc).
 
@@ -865,7 +892,7 @@ Known clients that can read with RTSP are [FFmpeg](#ffmpeg-1), [GStreamer](#gstr
 
 ##### Latency
 
-The RTSP protocol doesn't introduce any latency by itself. Latency is usually introduced by clients, that put frames in a buffer to compensate network fluctuations. In order to decrease latency, the best way consists in tuning the client. For instance, latency can be decreased with VLC by decreasing the Network caching parameter, that is available in the Open network stream dialog or alternatively ca be set with the command line:
+The RTSP protocol doesn't introduce any latency by itself. Latency is usually introduced by clients, that put frames in a buffer to compensate network fluctuations. In order to decrease latency, the best way consists in tuning the client. For instance, in VLC, latency can be decreased by decreasing the _Network caching_ parameter, that is available in the _Open network stream_ dialog or alternatively can be set with the command line:
 
 ```
 vlc --network-caching=50 rtsp://...
@@ -873,7 +900,7 @@ vlc --network-caching=50 rtsp://...
 
 #### RTMP
 
-RTMP is a protocol that allows to read and publish streams, but is less versatile and less efficient than RTSP and WebRTC ((doesn't support UDP, doesn't support most RTSP codecs, doesn't support feedback mechanism)). Streams can be read from the server by using the URL:
+RTMP is a protocol that allows to read and publish streams, but is less versatile and less efficient than RTSP and WebRTC (doesn't support UDP, doesn't support most RTSP codecs, doesn't support feedback mechanism). Streams can be read from the server by using the URL:
 
 ```
 rtmp://localhost/mystream
@@ -1010,51 +1037,87 @@ There are 3 ways to change the configuration:
    docker run --rm -it --network=host -e MTX_PATHS_TEST_SOURCE=rtsp://myurl bluenviron/mediamtx
    ```
 
-3. By using the [API](#api).
+3. By using the [Control API](#control-api).
 
 ### Authentication
 
-Edit `mediamtx.yml` and set `publishUser` and `publishPass`:
+#### Internal
+
+The server provides three way to authenticate users:
+* Internal: users are stored in the configuration file
+* HTTP-based: an external HTTP URL is contacted to perform authentication
+* JWT: an external identity server provides authentication through JWTs
+
+The internal authentication method is the default one. Users are stored inside the configuration file, in this format:
 
 ```yml
-pathDefaults:
-  publishUser: myuser
-  publishPass: mypass
+authInternalUsers:
+  # Username. 'any' means any user, including anonymous ones.
+- user: any
+  # Password. Not used in case of 'any' user.
+  pass:
+  # IPs or networks allowed to use this user. An empty list means any IP.
+  ips: []
+  # List of permissions.
+  permissions:
+    # Available actions are: publish, read, playback, api, metrics, pprof.
+  - action: publish
+    # Paths can be set to further restrict access to a specific path.
+    # An empty path means any path.
+    # Regular expressions can be used by using a tilde as prefix.
+    path:
+  - action: read
+    path:
+  - action: playback
+    path:
 ```
 
-Only publishers that provide both username and password will be able to proceed:
+Only clients that provide username and passwords will be able to perform a certain action:
 
 ```
 ffmpeg -re -stream_loop -1 -i file.ts -c copy -f rtsp rtsp://myuser:mypass@localhost:8554/mystream
 ```
 
-It's possible to setup authentication for readers too:
+If storing plain credentials in the configuration file is a security problem, username and passwords can be stored as hashed strings. The Argon2 and SHA256 hashing algorithms are supported. To use Argon2, the string must be hashed using Argon2id (recommended) or Argon2i:
+
+```
+echo -n "mypass" | argon2 saltItWithSalt -id -l 32 -e
+```
+
+Then stored with the `argon2:` prefix:
 
 ```yml
-pathDefaults:
-  readUser: user
-  readPass: userpass
+authInternalUsers:
+- user: argon2:$argon2id$v=19$m=4096,t=3,p=1$MTIzNDU2Nzg$OGGO0eCMN0ievb4YGSzvS/H+Vajx1pcbUmtLp2tRqRU
+  pass: argon2:$argon2i$v=19$m=4096,t=3,p=1$MTIzNDU2Nzg$oct3kOiFywTdDdt19kT07hdvmsPTvt9zxAUho2DLqZw
+  permissions:
+  - action: publish
 ```
 
-If storing plain credentials in the configuration file is a security problem, username and passwords can be stored as sha256-hashed strings; a string must be hashed with sha256 and encoded with base64:
+To use SHA256, the string must be hashed with SHA256 and encoded with base64:
 
 ```
-echo -n "userpass" | openssl dgst -binary -sha256 | openssl base64
+echo -n "mypass" | openssl dgst -binary -sha256 | openssl base64
 ```
 
 Then stored with the `sha256:` prefix:
 
 ```yml
-pathDefaults:
-  readUser: sha256:j1tsRqDEw9xvq/D7/9tMx6Jh/jMhk3UfjwIB2f1zgMo=
-  readPass: sha256:BdSWkrdV+ZxFBLUQQY7+7uv9RmiSVA8nrPmjGjJtZQQ=
+authInternalUsers:
+- user: sha256:j1tsRqDEw9xvq/D7/9tMx6Jh/jMhk3UfjwIB2f1zgMo=
+  pass: sha256:BdSWkrdV+ZxFBLUQQY7+7uv9RmiSVA8nrPmjGjJtZQQ=
+  permissions:
+  - action: publish
 ```
 
 **WARNING**: enable encryption or use a VPN to ensure that no one is intercepting the credentials in transit.
 
+#### HTTP-based
+
 Authentication can be delegated to an external HTTP server:
 
 ```yml
+authMethod: http
 externalAuthenticationURL: http://myauthserver/auth
 ```
 
@@ -1062,20 +1125,18 @@ Each time a user needs to be authenticated, the specified URL will be requested 
 
 ```json
 {
-  "ip": "ip",
   "user": "user",
   "password": "password",
+  "ip": "ip",
+  "action": "publish|read|playback|api|metrics|pprof",
   "path": "path",
-  "protocol": "rtsp|rtmp|hls|webrtc",
+  "protocol": "rtsp|rtmp|hls|webrtc|srt",
   "id": "id",
-  "action": "read|publish",
   "query": "query"
 }
 ```
 
-If the URL returns a status code that begins with `20` (i.e. `200`), authentication is successful, otherwise it fails.
-
-Please be aware that it's perfectly normal for the authentication server to receive requests with empty users and passwords, i.e.:
+If the URL returns a status code that begins with `20` (i.e. `200`), authentication is successful, otherwise it fails. Be aware that it's perfectly normal for the authentication server to receive requests with empty users and passwords, i.e.:
 
 ```json
 {
@@ -1084,21 +1145,111 @@ Please be aware that it's perfectly normal for the authentication server to rece
 }
 ```
 
-This happens because a RTSP client doesn't provide credentials until it is asked to. In order to receive the credentials, the authentication server must reply with status code `401`, then the client will send credentials.
+This happens because RTSP clients don't provide credentials until they are asked to. In order to receive the credentials, the authentication server must reply with status code `401`, then the client will send credentials.
+
+Some actions can be excluded from the process:
+
+```yml
+# Actions to exclude from HTTP-based authentication.
+# Format is the same as the one of user permissions.
+authHTTPExclude:
+- action: api
+- action: metrics
+- action: pprof
+```
+
+#### JWT-based
+
+Authentication can be delegated to an external identity server, that is capable of generating JWTs and provides a JWKS endpoint. With respect to the HTTP-based method, this has the advantage that the external server is contacted just once, and not for every request, greatly improving performance. In order to use the JWT-based authentication method, set `authMethod` and `authJWTJWKS`:
+
+```yml
+authMethod: jwt
+authJWTJWKS: http://my_identity_server/jwks_endpoint
+```
+
+The JWT is expected to contain the `mediamtx_permissions` scope, with a list of permissions in the same format as the one of user permissions:
+
+```json
+{
+ "mediamtx_permissions": [
+    {
+      "action": "publish",
+      "path": ""
+    }
+  ]
+}
+```
+
+Clients are expected to pass the JWT in query parameters, for instance:
+
+```
+ffmpeg -re -stream_loop -1 -i file.ts -c copy -f rtsp rtsp://localhost:8554/mystream?jwt=MY_JWT
+```
+
+Here's a tutorial on how to setup the [Keycloak identity server](https://www.keycloak.org/) in order to provide such JWTs:
+
+1. Start Keycloak:
+
+   ```
+   docker run --name=keycloak -p 8080:8080 -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:23.0.7 start-dev
+   ```
+
+2. Open the Keycloak administration console on http://localhost:8080, click on _master_ in the top left corner, _create realm_, set realm name to `mediamtx`, Save
+
+3. Open page _Client scopes_, _create client scope_, set name to `mediamtx`, Save
+
+4. Open tab _Mappers_, _Configure a new Mapper_, _User Attribute_
+
+   * Name: `mediamtx_permissions`
+   * User Attribute: `mediamtx_permissions`
+   * Token Claim Name: `mediamtx_permissions`
+   * Claim JSON Type: `JSON`
+   * Multivalued: `On`
+
+   Save
+
+5. Open page _Clients_, _Create client_, set Client ID to `mediamtx`, Next, Client authentication `On`, Next, Save
+
+6. Open tab _Credentials_, copy client secret somewhere
+
+7. Open tab _Client scopes_, _Add client scope_, Select `mediamtx`, Add, Default
+
+8. Open page _Users_, _Create user_, Username `testuser`, Tab credentials, _Set password_, pick a password, Save
+
+9. Open tab _Attributes_, _Add an attribute_
+
+   * Key: `mediamtx_permissions`
+   * Value: `{"action":"publish", "paths": "all"}`
+
+   You can add as many attributes with key `mediamtx_permissions` as you want, each with a single permission in it
+
+10. In MediaMTX, use the following URL:
+
+    ```yml
+    authJWTJWKS: http://localhost:8080/realms/mediamtx/protocol/openid-connect/certs
+    ```
+
+11. Perform authentication on Keycloak:
+
+    ```
+    curl \
+    -d "client_id=mediamtx" \
+    -d "client_secret=$CLIENT_SECRET" \
+    -d "username=$USER" \
+    -d "password=$PASS" \
+    -d "grant_type=password" \
+    http://localhost:8080/realms/mediamtx/protocol/openid-connect/token
+    ```
+
+    The JWT is inside the `access_token` key of the response:
+
+    ```json
+    {"access_token":"eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICIyNzVjX3ptOVlOdHQ0TkhwWVk4Und6ZndUclVGSzRBRmQwY3lsM2wtY3pzIn0.eyJleHAiOjE3MDk1NTUwOTIsImlhdCI6MTcwOTU1NDc5MiwianRpIjoiMzE3ZTQ1NGUtNzczMi00OTM1LWExNzAtOTNhYzQ2ODhhYWIxIiwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwL3JlYWxtcy9tZWRpYW10eCIsImF1ZCI6ImFjY291bnQiLCJzdWIiOiI2NTBhZDA5Zi03MDgxLTQyNGItODI4Ni0xM2I3YTA3ZDI0MWEiLCJ0eXAiOiJCZWFyZXIiLCJhenAiOiJtZWRpYW10eCIsInNlc3Npb25fc3RhdGUiOiJjYzJkNDhjYy1kMmU5LTQ0YjAtODkzZS0wYTdhNjJiZDI1YmQiLCJhY3IiOiIxIiwiYWxsb3dlZC1vcmlnaW5zIjpbIi8qIl0sInJlYWxtX2FjY2VzcyI6eyJyb2xlcyI6WyJvZmZsaW5lX2FjY2VzcyIsInVtYV9hdXRob3JpemF0aW9uIiwiZGVmYXVsdC1yb2xlcy1tZWRpYW10eCJdfSwicmVzb3VyY2VfYWNjZXNzIjp7ImFjY291bnQiOnsicm9sZXMiOlsibWFuYWdlLWFjY291bnQiLCJtYW5hZ2UtYWNjb3VudC1saW5rcyIsInZpZXctcHJvZmlsZSJdfX0sInNjb3BlIjoibWVkaWFtdHggcHJvZmlsZSBlbWFpbCIsInNpZCI6ImNjMmQ0OGNjLWQyZTktNDRiMC04OTNlLTBhN2E2MmJkMjViZCIsImVtYWlsX3ZlcmlmaWVkIjpmYWxzZSwibWVkaWFtdHhfcGVybWlzc2lvbnMiOlt7ImFjdGlvbiI6InB1Ymxpc2giLCJwYXRocyI6ImFsbCJ9XSwicHJlZmVycmVkX3VzZXJuYW1lIjoidGVzdHVzZXIifQ.Gevz7rf1qHqFg7cqtSfSP31v_NS0VH7MYfwAdra1t6Yt5rTr9vJzqUeGfjYLQWR3fr4XC58DrPOhNnILCpo7jWRdimCnbPmuuCJ0AYM-Aoi3PAsWZNxgmtopq24_JokbFArY9Y1wSGFvF8puU64lt1jyOOyxf2M4cBHCs_EarCKOwuQmEZxSf8Z-QV9nlfkoTUszDCQTiKyeIkLRHL2Iy7Fw7_T3UI7sxJjVIt0c6HCNJhBBazGsYzmcSQ_GrmhbUteMTg00o6FicqkMBe99uZFnx9wIBm_QbO9hbAkkzF923I-DTAQrFLxT08ESMepDwmzFrmnwWYBLE3u8zuUlCA","expires_in":300,"refresh_expires_in":1800,"refresh_token":"eyJhbGciOiJIUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICI3OTI3Zjg4Zi05YWM4LTRlNmEtYWE1OC1kZmY0MDQzZDRhNGUifQ.eyJleHAiOjE3MDk1NTY1OTIsImlhdCI6MTcwOTU1NDc5MiwianRpIjoiMGVhZWFhMWItYzNhMC00M2YxLWJkZjAtZjI2NTRiODlkOTE3IiwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwL3JlYWxtcy9tZWRpYW10eCIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODA4MC9yZWFsbXMvbWVkaWFtdHgiLCJzdWIiOiI2NTBhZDA5Zi03MDgxLTQyNGItODI4Ni0xM2I3YTA3ZDI0MWEiLCJ0eXAiOiJSZWZyZXNoIiwiYXpwIjoibWVkaWFtdHgiLCJzZXNzaW9uX3N0YXRlIjoiY2MyZDQ4Y2MtZDJlOS00NGIwLTg5M2UtMGE3YTYyYmQyNWJkIiwic2NvcGUiOiJtZWRpYW10eCBwcm9maWxlIGVtYWlsIiwic2lkIjoiY2MyZDQ4Y2MtZDJlOS00NGIwLTg5M2UtMGE3YTYyYmQyNWJkIn0.yuXV8_JU0TQLuosNdp5xlYMjn7eO5Xq-PusdHzE7bsQ","token_type":"Bearer","not-before-policy":0,"session_state":"cc2d48cc-d2e9-44b0-893e-0a7a62bd25bd","scope":"mediamtx profile email"}
+    ```
 
 ### Encrypt the configuration
 
-The configuration file can be entirely encrypted for security purposes.
-
-An online encryption tool is [available here](https://play.golang.org/p/rX29jwObNe4).
-
-The encryption procedure is the following:
-
-1. NaCL's `crypto_secretbox` function is applied to the content of the configuration. NaCL is a cryptographic library available for [C/C++](https://nacl.cr.yp.to/secretbox.html), [Go](https://pkg.go.dev/golang.org/x/crypto/nacl/secretbox), [C#](https://github.com/somdoron/NaCl.net) and many other languages;
-
-2. The string is prefixed with the nonce;
-
-3. The string is encoded with base64.
+The configuration file can be entirely encrypted for security purposes by using the `crypto_secretbox` function of the NaCL function. An online tool for performing this operation is [available here](https://play.golang.org/p/rX29jwObNe4).
 
 After performing the encryption, put the base64-encoded result into the configuration file, and launch the server with the `MTX_CONFKEY` variable:
 
@@ -1164,7 +1315,70 @@ To upload recordings to a remote location, you can use _MediaMTX_ together with 
 
    If you want to delete local segments after they are uploaded, replace `rclone sync` with `rclone move`.
 
-### Forward streams to another server
+### Playback recorded streams
+
+Existing recordings can be served to users through a dedicated HTTP server, that can be enabled inside the configuration:
+
+```yml
+playback: yes
+playbackAddress: :9996
+```
+
+The server provides an endpoint to list recorded timespans:
+
+```
+http://localhost:9996/list?path=[mypath]
+```
+
+Where [mypath] is the name of a path. The server will return a list of timespans in JSON format:
+
+```json
+[
+  {
+    "start": "2006-01-02T15:04:05Z07:00",
+    "duration": "60.0"
+  },
+  {
+    "start": "2006-01-02T15:07:05Z07:00",
+    "duration": "32.33"
+  }
+]
+```
+
+The server provides an endpoint for downloading recordings:
+
+```
+http://localhost:9996/get?path=[mypath]&start=[start_date]&duration=[duration]&format=[format]
+```
+
+Where:
+
+* [mypath] is the path name
+* [start_date] is the start date in [RFC3339 format](https://www.utctime.net/)
+* [duration] is the maximum duration of the recording in seconds
+* [format] (optional) is the output format of the stream. Available values are "fmp4" (default) and "mp4"
+
+All parameters must be [url-encoded](https://www.urlencoder.org/). For instance:
+
+```
+http://localhost:9996/get?path=stream2&start=2024-01-14T16%3A33%3A17%2B00%3A00&duration=200.5
+```
+
+The resulting stream uses the fMP4 format, that is natively compatible with any browser, therefore its URL can be directly inserted into a \<video> tag:
+
+```html
+<video controls>
+  <source src="http://localhost:9996/get?path=[mypath]&start=[start_date]&duration=[duration]" type="video/mp4" />
+</video>
+```
+
+The fMP4 format may offer limited compatibility with some players. To fix the issue, it's possible to use the standard MP4 format, by adding `format=mp4` to a `/get` request:
+
+```
+http://localhost:9996/get?path=[mypath]&start=[start_date]&duration=[duration]&format=mp4
+```
+
+### Forward streams to other servers
 
 To forward incoming streams to another server, use _FFmpeg_ inside the `runOnReady` parameter:
 
@@ -1173,9 +1387,24 @@ pathDefaults:
   runOnReady: >
     ffmpeg -i rtsp://localhost:$RTSP_PORT/$MTX_PATH
     -c copy
-    -f rtsp rtsp://another-server/another-path
+    -f rtsp rtsp://other-server:8554/another-path
   runOnReadyRestart: yes
 ```
+
+### Proxy requests to other servers
+
+The server allows to proxy incoming requests to other servers or cameras. This is useful to expose servers or cameras behind a NAT. Edit `mediamtx.yml` and replace everything inside section `paths` with the following content:
+
+```yml
+paths:
+  "~^proxy_(.+)$":
+    # If path name is a regular expression, $G1, G2, etc will be replaced
+    # with regular expression groups.
+    source: rtsp://other-server:8554/$G1
+    sourceOnDemand: yes
+```
+
+All requests addressed to `rtsp://server:8854/proxy_a` will be forwarded to `rtsp://other-server:8854/a` and so on.
 
 ### On-demand publishing
 
@@ -1443,21 +1672,23 @@ pathDefaults:
   runOnRecordSegmentComplete: curl http://my-custom-server/webhook?path=$MTX_PATH&segment_path=$MTX_SEGMENT_PATH
 ```
 
-### API
+### Control API
 
-The server can be queried and controlled with its API, that must be enabled by setting the `api` parameter in the configuration:
+The server can be queried and controlled with an API, that can be enabled by setting the `api` parameter in the configuration:
 
 ```yml
 api: yes
 ```
 
-The API listens on `apiAddress`, that by default is `127.0.0.1:9997`; for instance, to obtain a list of active paths, run:
+To obtain a list of of active paths, run:
 
 ```
-curl http://127.0.0.1:9997/v2/paths/list
+curl http://127.0.0.1:9997/v3/paths/list
 ```
 
-Full documentation of the API is available on the [dedicated site](https://bluenviron.github.io/mediamtx/).
+Full documentation of the Control API is available on the [dedicated site](https://bluenviron.github.io/mediamtx/).
+
+Be aware that by default the Control API is accessible by localhost only; to increase visibility or add authentication, check [Authentication](#authentication).
 
 ### Metrics
 
@@ -1511,8 +1742,57 @@ rtmps_conns_bytes_sent{id="[id]",state="[state]"} 187
 
 # metrics of every SRT connection
 srt_conns{id="[id]",state="[state]"} 1
-srt_conns_bytes_received{id="[id]",state="[state]"} 1234
+srt_conns_packets_sent{id="[id]",state="[state]"} 123
+srt_conns_packets_received{id="[id]",state="[state]"} 123
+srt_conns_packets_sent_unique{id="[id]",state="[state]"} 123
+srt_conns_packets_received_unique{id="[id]",state="[state]"} 123
+srt_conns_packets_send_loss{id="[id]",state="[state]"} 123
+srt_conns_packets_received_loss{id="[id]",state="[state]"} 123
+srt_conns_packets_retrans{id="[id]",state="[state]"} 123
+srt_conns_packets_received_retrans{id="[id]",state="[state]"} 123
+srt_conns_packets_sent_ack{id="[id]",state="[state]"} 123
+srt_conns_packets_received_ack{id="[id]",state="[state]"} 123
+srt_conns_packets_sent_nak{id="[id]",state="[state]"} 123
+srt_conns_packets_received_nak{id="[id]",state="[state]"} 123
+srt_conns_packets_sent_km{id="[id]",state="[state]"} 123
+srt_conns_packets_received_km{id="[id]",state="[state]"} 123
+srt_conns_us_snd_duration{id="[id]",state="[state]"} 123
+srt_conns_packets_send_drop{id="[id]",state="[state]"} 123
+srt_conns_packets_received_drop{id="[id]",state="[state]"} 123
+srt_conns_packets_received_undecrypt{id="[id]",state="[state]"} 123
 srt_conns_bytes_sent{id="[id]",state="[state]"} 187
+srt_conns_bytes_received{id="[id]",state="[state]"} 1234
+srt_conns_bytes_sent_unique{id="[id]",state="[state]"} 123
+srt_conns_bytes_received_unique{id="[id]",state="[state]"} 123
+srt_conns_bytes_received_loss{id="[id]",state="[state]"} 123
+srt_conns_bytes_retrans{id="[id]",state="[state]"} 123
+srt_conns_bytes_received_retrans{id="[id]",state="[state]"} 123
+srt_conns_bytes_send_drop{id="[id]",state="[state]"} 123
+srt_conns_bytes_received_drop{id="[id]",state="[state]"} 123
+srt_conns_bytes_received_undecrypt{id="[id]",state="[state]"} 123
+srt_conns_us_packets_send_period{id="[id]",state="[state]"} 123.123
+srt_conns_packets_flow_window{id="[id]",state="[state]"} 123
+srt_conns_packets_flight_size{id="[id]",state="[state]"} 123
+srt_conns_ms_rtt{id="[id]",state="[state]"} 123.123
+srt_conns_mbps_send_rate{id="[id]",state="[state]"} 123
+srt_conns_mbps_receive_rate{id="[id]",state="[state]"} 123.123
+srt_conns_mbps_link_capacity{id="[id]",state="[state]"} 123.123
+srt_conns_bytes_avail_send_buf{id="[id]",state="[state]"} 123
+srt_conns_bytes_avail_receive_buf{id="[id]",state="[state]"} 123
+srt_conns_mbps_max_bw{id="[id]",state="[state]"} -123
+srt_conns_bytes_mss{id="[id]",state="[state]"} 123
+srt_conns_packets_send_buf{id="[id]",state="[state]"} 123
+srt_conns_bytes_send_buf{id="[id]",state="[state]"} 123
+srt_conns_ms_send_buf{id="[id]",state="[state]"} 123
+srt_conns_ms_send_tsb_pd_delay{id="[id]",state="[state]"} 123
+srt_conns_packets_receive_buf{id="[id]",state="[state]"} 123
+srt_conns_bytes_receive_buf{id="[id]",state="[state]"} 123
+srt_conns_ms_receive_buf{id="[id]",state="[state]"} 123
+srt_conns_ms_receive_tsb_pd_delay{id="[id]",state="[state]"} 123
+srt_conns_packets_reorder_tolerance{id="[id]",state="[state]"} 123
+srt_conns_packets_received_avg_belated_time{id="[id]",state="[state]"} 123
+srt_conns_packets_send_loss_rate{id="[id]",state="[state]"} 123
+srt_conns_packets_received_loss_rate{id="[id]",state="[state]"} 123
 
 # metrics of every WebRTC session
 webrtc_sessions{id="[id]",state="[state]"} 1
@@ -1528,6 +1808,94 @@ A performance monitor, compatible with pprof, can be enabled with the parameter 
 go tool pprof -text http://localhost:9999/debug/pprof/goroutine
 go tool pprof -text http://localhost:9999/debug/pprof/heap
 go tool pprof -text http://localhost:9999/debug/pprof/profile?seconds=30
+```
+
+### SRT-specific features
+
+#### Standard stream ID syntax
+
+In SRT, the stream ID is a string that is sent to the counterpart in order to advertise what action the caller is gonna do (publish or read), the path and the credentials. All these informations have to be encoded into a single string. This server supports two stream ID syntaxes, a custom one (that is the one reported in rest of the README) and also a [standard one](https://github.com/Haivision/srt/blob/master/docs/features/access-control.md) proposed by the authors of the protocol and sometimes enforced by some hardware. The standard syntax can be used in this way:
+
+```
+srt://localhost:8890?streamid=#!::m=publish,r=mypath,u=myuser,s=mypass&pkt_size=1316
+```
+
+Where:
+
+* key `m` contains the action (`publish` or `request`)
+* key `r` contains the path
+* key `u` contains the username
+* key `s` contains the password
+
+### WebRTC-specific features
+
+#### Connectivity issues
+
+If the server is hosted inside a container or is behind a NAT, additional configuration is required in order to allow the two WebRTC parts (server and client) to establish a connection.
+
+Make sure that `webrtcAdditionalHosts` includes your public IPs, that are IPs that can be used by clients to reach the server. If clients are on the same LAN as the server, then insert the LAN address of the server. If clients are coming from the internet, insert the public IP address of the server, or alternatively a DNS name, if you have one. You can insert multiple values to support all scenarios:
+
+```yml
+webrtcAdditionalHosts: [192.168.x.x, 1.2.3.4, my-dns.example.org, ...]
+```
+
+If there's a NAT / container between server and clients, it must be configured to route all incoming UDP packets on port 8189 to the server. If you're using Docker, this can be achieved with the flag:
+
+```sh
+docker run --rm -it \
+-p 8189:8189/udp
+....
+bluenviron/mediamtx
+```
+
+If you still have problems, maybe the UDP protocol is blocked by a firewall. Enable the local TCP listener:
+
+```yml
+# any port of choice
+webrtcLocalTCPAddress: :8189
+```
+
+If there's a NAT / container between server and clients, it must be configured to route all incoming TCP packets on port 8189 to the server.
+
+If you still have problems, enable a STUN server:
+
+```yml
+# STUN servers allows to obtain and share the public IP of the server.
+webrtcICEServers2:
+  - url: stun:stun.l.google.com:19302
+```
+
+If you really still have problems, you can force all WebRTC/ICE connections to pass through a TURN server, like coturn, that must be configured externally. The server address and credentials must be set in the configuration file:
+
+```yml
+# TURN/TURNS servers forces all traffic through them.
+webrtcICEServers2:
+- url: turn:host:port
+  username: user
+  password: password
+```
+
+Where user and pass are the username and password of the server. Note that port is not optional.
+
+If the server uses a secret-based authentication (for instance, coturn with the use-auth-secret option), it must be configured by using AUTH_SECRET as username, and the secret as password:
+
+```yml
+webrtcICEServers2:
+- url: turn:host:port
+  username: AUTH_SECRET
+  password: secret
+```
+
+where secret is the secret of the TURN server. MediaMTX will generate a set of credentials by using the secret, and credentials will be sent to clients before the WebRTC/ICE connection is established.
+
+In some cases you may want the browser to connect using TURN servers but have mediamtx not using TURN (for example if the TURN server is on the same network as mediamtx).  To allow this you can configure the TURN server to be client only:
+
+```yml
+webrtcICEServers2:
+- url: turn:host:port
+  username: user
+  password: password
+  clientOnly: true
 ```
 
 ### RTSP-specific features
@@ -1620,76 +1988,16 @@ rtmps://localhost:1937/...
 
 Be aware that RTMPS is currently unsupported by all major players. However, you can use a proxy like [stunnel](https://www.stunnel.org) or [nginx](https://nginx.org/) or a dedicated _MediaMTX_ instance to decrypt streams before reading them.
 
-### WebRTC-specific features
-
-#### Connectivity issues
-
-If the server is hosted inside a container or is behind a NAT, additional configuration is required in order to allow the two WebRTC parts (server and client) to establish a connection.
-
-Make sure that `webrtcAdditionalHosts` includes your public IPs, that are IPs that can be used by clients to reach the server. If clients are on the same LAN as the server, then insert the LAN address of the server. If clients are coming from the internet, insert the public IP address of the server, or alternatively a DNS name, if you have one. You can insert multiple values to support all scenarios:
-
-```yml
-webrtcAdditionalHosts: [192.168.x.x, 1.2.3.4, my-dns.example.org, ...]
-```
-
-If there's a NAT / container between server and clients, it must be configured to route all incoming UDP packets on port 8189 to the server. If you're using Docker, this can be achieved with the flag:
-
-```sh
-docker run --rm -it \
--p 8189:8189/udp
-....
-bluenviron/mediamtx
-```
-
-If you still have problems, maybe the UDP protocol is blocked by a firewall. Enable the local TCP listener:
-
-```yml
-# any port of choice
-webrtcLocalTCPAddress: :8189
-```
-
-If there's a NAT / container between server and clients, it must be configured to route all incoming TCP packets on port 8189 to the server.
-
-If you still have problems, enable a STUN server:
-
-```yml
-# STUN servers allows to obtain and share the public IP of the server.
-webrtcICEServers2:
-  - url: stun:stun.l.google.com:19302
-```
-
-If you really still have problems, you can force all WebRTC/ICE connections to pass through a TURN server, like coturn, that must be configured externally. The server address and credentials must be set in the configuration file:
-
-```yml
-# TURN/TURNS servers forces all traffic through them.
-webrtcICEServers2:
-- url: turn:host:port
-  username: user
-  password: password
-```
-
-Where user and pass are the username and password of the server. Note that port is not optional.
-
-If the server uses a secret-based authentication (for instance, coturn with the use-auth-secret option), it must be configured by using AUTH_SECRET as username, and the secret as password:
-
-```yml
-webrtcICEServers2:
-- url: turn:host:port
-  username: AUTH_SECRET
-  password: secret
-```
-
-where secret is the secret of the TURN server. MediaMTX will generate a set of credentials by using the secret, and credentials will be sent to clients before the WebRTC/ICE connection is established.
-
 ## Compile from source
 
 ### Standard
 
-Install git and Go &ge; 1.21. Clone the repository, enter into the folder and start the building process:
+Install git and Go &ge; 1.22. Clone the repository, enter into the folder and start the building process:
 
 ```sh
 git clone https://github.com/bluenviron/mediamtx
 cd mediamtx
+go generate ./...
 CGO_ENABLED=0 go build .
 ```
 
@@ -1699,7 +2007,7 @@ The command will produce the `mediamtx` binary.
 
 The server can be compiled with native support for the Raspberry Pi Camera. Compilation must be performed on a Raspberry Pi, with the following dependencies:
 
-* Go &ge; 1.21
+* Go &ge; 1.22
 * `libcamera-dev`
 * `libfreetype-dev`
 * `xxd`
@@ -1710,6 +2018,7 @@ Download the repository, open a terminal in it and run:
 cd internal/protocols/rpicamera/exe
 make
 cd ../../../../
+go generate ./...
 go build -tags rpicamera .
 ```
 
@@ -1729,7 +2038,49 @@ Clone the repository, enter into the folder and start the building process:
 ```sh
 git clone https://github.com/bluenviron/mediamtx
 cd mediamtx
+go generate ./...
 CGO_ENABLED=0 go build .
+```
+
+The command will produce the `mediamtx` binary.
+
+If the OpenWrt device doesn't have enough resources to compile, you can [cross compile](#cross-compile) from another machine.
+
+### Cross compile
+
+Cross compilation allows to build an executable for a target machine from another machine with different operating system or architecture. This is useful in case the target machine doesn't have enough resources for compilation or if you don't want to install the compilation dependencies on it.
+
+On the machine you want to use to compile, install git and Go &ge; 1.22. Clone the repository, enter into the folder and start the building process:
+
+```sh
+git clone https://github.com/bluenviron/mediamtx
+cd mediamtx
+go generate ./...
+CGO_ENABLED=0 GOOS=my_os GOARCH=my_arch go build .
+```
+
+Replace `my_os` and `my_arch` with the operating system and architecture of your target machine. A list of all supported combinations can be obtained with:
+
+```sh
+go tool dist list
+```
+
+For instance:
+
+```sh
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build .
+```
+
+In case of the `arm` architecture, there's an additional flag available, `GOARM`, that allows to set the ARM version:
+
+```sh
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 GOARM=7 go build .
+```
+
+In case of the `mips` architecture, there's an additional flag available, `GOMIPS`, that allows to set additional parameters:
+
+```sh
+CGO_ENABLED=0 GOOS=linux GOARCH=mips GOMIPS=softfloat go build .
 ```
 
 The command will produce the `mediamtx` binary.
@@ -1744,6 +2095,13 @@ make binaries
 
 The command will produce tarballs in folder `binaries/`.
 
+## License
+
+All the code in this repository is released under the [MIT License](LICENSE). Compiled binaries make use of some third-party dependencies:
+
+* hls.js, released under the [Apache License 2.0](https://github.com/video-dev/hls.js/blob/master/LICENSE)
+* all the dependencies listed into the [go.mod file](go.mod), which are all released under either the MIT license, BSD-3-Clause license or Apache License 2.0
+
 ## Specifications
 
 |name|area|
@@ -1752,6 +2110,7 @@ The command will produce tarballs in folder `binaries/`.
 |[HLS specifications](https://github.com/bluenviron/gohlslib#specifications)|HLS|
 |[RTMP](https://rtmp.veriskope.com/pdf/rtmp_specification_1.0.pdf)|RTMP|
 |[Enhanced RTMP](https://raw.githubusercontent.com/veovera/enhanced-rtmp/main/enhanced-rtmp-v1.pdf)|RTMP|
+|[Action Message Format](https://rtmp.veriskope.com/pdf/amf0-file-format-specification.pdf)|RTMP|
 |[WebRTC: Real-Time Communication in Browsers](https://www.w3.org/TR/webrtc/)|WebRTC|
 |[WebRTC HTTP Ingestion Protocol (WHIP)](https://datatracker.ietf.org/doc/draft-ietf-wish-whip/)|WebRTC|
 |[WebRTC HTTP Egress Protocol (WHEP)](https://datatracker.ietf.org/doc/draft-murillo-whep/)|WebRTC|
@@ -1769,7 +2128,6 @@ The command will produce tarballs in folder `binaries/`.
 * [pion/sdp (SDP library used internally)](https://github.com/pion/sdp)
 * [pion/rtp (RTP library used internally)](https://github.com/pion/rtp)
 * [pion/rtcp (RTCP library used internally)](https://github.com/pion/rtcp)
-* [notedit/rtmp (RTMP library used internally)](https://github.com/notedit/rtmp)
 * [go-astits (MPEG-TS library used internally)](https://github.com/asticode/go-astits)
 * [go-mp4 (MP4 library used internally)](https://github.com/abema/go-mp4)
 * [hls.js (browser-side HLS library used internally)](https://github.com/video-dev/hls.js)

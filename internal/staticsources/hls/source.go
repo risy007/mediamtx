@@ -20,8 +20,9 @@ import (
 
 // Source is a HLS static source.
 type Source struct {
-	ReadTimeout conf.StringDuration
-	Parent      defs.StaticSourceParent
+	ResolvedSource string
+	ReadTimeout    conf.StringDuration
+	Parent         defs.StaticSourceParent
 }
 
 // Log implements logger.Writer.
@@ -41,14 +42,17 @@ func (s *Source) Run(params defs.StaticSourceRunParams) error {
 
 	decodeErrLogger := logger.NewLimitedLogger(s)
 
+	tr := &http.Transport{
+		TLSClientConfig: tls.ConfigForFingerprint(params.Conf.SourceFingerprint),
+	}
+	defer tr.CloseIdleConnections()
+
 	var c *gohlslib.Client
 	c = &gohlslib.Client{
-		URI: params.Conf.Source,
+		URI: s.ResolvedSource,
 		HTTPClient: &http.Client{
-			Timeout: time.Duration(s.ReadTimeout),
-			Transport: &http.Transport{
-				TLSClientConfig: tls.ConfigForFingerprint(params.Conf.SourceFingerprint),
-			},
+			Timeout:   time.Duration(s.ReadTimeout),
+			Transport: tr,
 		},
 		OnDownloadPrimaryPlaylist: func(u string) {
 			s.Log(logger.Debug, "downloading primary playlist %v", u)
@@ -58,6 +62,9 @@ func (s *Source) Run(params defs.StaticSourceRunParams) error {
 		},
 		OnDownloadSegment: func(u string) {
 			s.Log(logger.Debug, "downloading segment %v", u)
+		},
+		OnDownloadPart: func(u string) {
+			s.Log(logger.Debug, "downloading part %v", u)
 		},
 		OnDecodeError: func(err error) {
 			decodeErrLogger.Log(logger.Warn, err.Error())
@@ -116,7 +123,7 @@ func (s *Source) Run(params defs.StaticSourceRunParams) error {
 						}},
 					}
 
-					c.OnDataH26x(track, func(pts time.Duration, dts time.Duration, au [][]byte) {
+					c.OnDataH26x(track, func(pts time.Duration, _ time.Duration, au [][]byte) {
 						stream.WriteUnit(medi, medi.Formats[0], &unit.H264{
 							Base: unit.Base{
 								NTP: time.Now(),
@@ -137,7 +144,7 @@ func (s *Source) Run(params defs.StaticSourceRunParams) error {
 						}},
 					}
 
-					c.OnDataH26x(track, func(pts time.Duration, dts time.Duration, au [][]byte) {
+					c.OnDataH26x(track, func(pts time.Duration, _ time.Duration, au [][]byte) {
 						stream.WriteUnit(medi, medi.Formats[0], &unit.H265{
 							Base: unit.Base{
 								NTP: time.Now(),
